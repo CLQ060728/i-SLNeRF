@@ -1,5 +1,5 @@
 data:
-  data_root: /nas-data/qian_workspace/i-SLNeRF_on/data/Waymo/ # path to the dataset
+  data_root: /nas-data/qian_workspace/SL-PANeRF/data/Waymo/ # path to the dataset
   ray_batch_size: 8192 # ray batch size for training, it's embedded in the dataset class for now
   pixel_source: # everything related to "pixels" --- from camera images
     load_size:  [640, 960] # [height, width], resize the raw image to this size [640, 960] [1280, 1920]
