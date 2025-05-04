@@ -42,9 +42,10 @@ data:
 nerf: # i-SLNeRF hyperparameters
   # direction: x-front, y-left, z-up. [x_min, y_min, z_min, x_max, y_max, z_max]
   unbounded: True # use unbounded contraction as in mipnerf360 / merf
+  contract_method: inner_outer # choose contraction methods from ["inner_outer", "aabb_bounded"]
   inner_range: [80.0 ,80.0 ,20.0] # [50.0, 50.0, 10.0] inner range for the unbounded contraction
   contract_ratio: 0.5 # how much to contract the aabb, 0.5 means 50% of the aabb
-  contract_method: inner_outer # choose contraction methods from ["inner_outer", "aabb_bounded"]
+
   propnet: # proposal networks hyperparameters
     num_samples_per_prop: [128, 64] # how many samples to use for each propnet
     near_plane: 0.1 # near plane for the propnet
