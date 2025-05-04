@@ -60,9 +60,6 @@ class RadianceField(nn.Module):
 
         self.geometry_feature_dim = geometry_feature_dim
 
-        # note: we use very conservative default values for mlps
-        # usually you want to use larger ones
-
         # ======== Static Field ======== #
         self.xyz_encoder = xyz_encoder
         self.base_mlp = nn.Sequential(
