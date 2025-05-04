@@ -496,8 +496,7 @@ class NuScenesDataset(SceneDataset):
 
         # ---- create pixel source ---- #
         self.pixel_source, self.lidar_source = self.build_data_source()
-        self.aabb = self.get_aabb()
-        # self.aabb = self.get_aabb_specified(self.data_cfg.dataset, self.data_cfg.voxel_size)
+        self.aabb = self.get_aabb(self.data_cfg.aabb_type, self.data_cfg.aabb)
 
         # ---- define train and test indices ---- #
         (
