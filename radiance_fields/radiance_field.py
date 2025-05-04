@@ -14,7 +14,7 @@ from radiance_fields.encodings import (
     SinusoidalEncoder,
     build_xyz_encoder_from_cfg,
 )
-from radiance_fields.nerf_utils import contract, find_topk_nearby_timesteps, trunc_exp
+from radiance_fields.nerf_utils import contract, contract_inner, find_topk_nearby_timesteps, trunc_exp
 from radiance_fields.mlp import MLP
 
 logger = logging.getLogger()
@@ -30,6 +30,9 @@ class RadianceField(nn.Module):
         num_dims: int = 3,
         density_activation: Callable = lambda x: trunc_exp(x - 1),
         unbounded: bool = True,
+        contract_method: str = "aabb_bounded",
+        innner_range: List[float] = [50.0, 50.0, 10.0],
+        contract_ratio: float = 0.5,
         geometry_feature_dim: int = 15,
         base_mlp_layer_width: int = 64,
         head_mlp_layer_width: int = 64,
@@ -49,6 +52,9 @@ class RadianceField(nn.Module):
             aabb = torch.tensor(aabb, dtype=torch.float32)
         self.register_buffer("aabb", aabb)
         self.unbounded = unbounded
+        self.contract_method = contract_method
+        self.innner_range = torch.tensor(innner_range, dtype=torch.float32)
+        self.contract_ratio = contract_ratio
         self.num_cams = num_cams
         self.num_dims = num_dims
         self.density_activation = density_activation
@@ -212,8 +218,16 @@ class RadianceField(nn.Module):
             normed_positions: [..., 3] in [0, 1]
         """
         if self.unbounded:
-            # use infinte norm to contract the positions for cuboid aabb
-            normed_positions = contract(positions, self.aabb, ord=float("inf"))
+            if self.contract_method == "aabb_bounded":
+                # use infinte norm to contract the positions for cuboid aabb
+                normed_positions = contract(positions, self.aabb, ord=float("inf"))
+            elif self.contract_method == "inner_bounded":
+                # use inner range to contract the positions for cuboid aabb
+                normed_positions = contract_inner(positions, self.innner_range, self.contract_ratio)
+            else:
+                raise NotImplementedError(
+                    f"Contract method {self.contract_method} is not implemented."
+                )
         else:
             aabb_min, aabb_max = torch.split(self.aabb, 3, dim=-1)
             normed_positions = (positions - aabb_min) / (aabb_max - aabb_min)
@@ -609,6 +623,9 @@ class DensityField(nn.Module):
         num_dims: int = 3,
         density_activation: Callable = lambda x: trunc_exp(x - 1),
         unbounded: bool = False,
+        contract_method = "aabb_bounded",
+        inner_range: List[float] = [50.0, 50.0, 10.0],
+        contract_ratio: float = 0.5,
         base_mlp_layer_width: int = 64,
     ) -> None:
         super().__init__()
@@ -618,6 +635,9 @@ class DensityField(nn.Module):
         self.num_dims = num_dims
         self.density_activation = density_activation
         self.unbounded = unbounded
+        self.contract_method = contract_method
+        self.inner_range = torch.tensor(inner_range, dtype=torch.float32)
+        self.contract_ratio = contract_ratio
         self.xyz_encoder = xyz_encoder
 
         # density head
@@ -642,8 +662,16 @@ class DensityField(nn.Module):
         self, positions: Tensor, data_dict: Dict[str, Tensor] = None
     ) -> Dict[str, Tensor]:
         if self.unbounded:
-            # use infinte norm to contract the positions for cuboid aabb
-            positions = contract(positions, self.aabb, ord=float("inf"))
+            if self.contract_method == "aabb_bounded":
+                # use infinte norm to contract the positions for cuboid aabb
+                positions = contract(positions, self.aabb, ord=float("inf"))
+            elif self.contract_method == "inner_bounded":
+                # use inner range to contract the positions for cuboid aabb
+                positions = contract_inner(positions, self.inner_range, self.contract_ratio)
+            else:
+                raise NotImplementedError(
+                    f"Contract method {self.contract_method} is not implemented."
+                )
         else:
             aabb_min, aabb_max = torch.split(self.aabb, 3, dim=-1)
             positions = (positions - aabb_min) / (aabb_max - aabb_min)
@@ -742,6 +770,9 @@ def build_radiance_field_from_cfg(cfg, verbose=True) -> RadianceField:
         dynamic_xyz_encoder=dynamic_xyz_encoder,
         flow_xyz_encoder=flow_xyz_encoder,
         unbounded=cfg.unbounded,
+        contract_method=cfg.contract_method,
+        inner_range=cfg.inner_range,
+        contract_ratio=cfg.contract_ratio,
         num_cams=cfg.num_cams,
         geometry_feature_dim=cfg.neck.geometry_feature_dim,
         base_mlp_layer_width=cfg.neck.base_mlp_layer_width,
@@ -767,6 +798,9 @@ def build_density_field(
     log2_hashmap_size: int = 20,
     n_features_per_level: int = 2,
     unbounded: bool = True,
+    contract_method: str = "aabb_bounded",
+    inner_range: List[float] = [50.0, 50.0, 10.0],
+    contract_ratio: float = 0.5
 ) -> DensityField:
     if type == "HashEncoder":
         xyz_encoder = HashEncoder(
@@ -783,4 +817,7 @@ def build_density_field(
         xyz_encoder=xyz_encoder,
         aabb=aabb,
         unbounded=unbounded,
+        contract_method=contract_method,
+        inner_range=inner_range,
+        contract_ratio=contract_ratio
     )

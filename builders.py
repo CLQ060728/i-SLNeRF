@@ -1,15 +1,5 @@
 # Author: Qian Liu
 # Email: liu.qian.pro@gmail.com
-# The code in this file is adopted from the following repository: 
-# https://github.com/NVlabs/EmerNeRF.git
-''' 
-@article{yang2023emernerf,
-    title={EmerNeRF: Emergent Spatial-Temporal Scene Decomposition via Self-Supervision},
-    author={Jiawei Yang and Boris Ivanovic and Or Litany and Xinshuo Weng and Seung Wook Kim and Boyi Li and Tong Che and Danfei Xu and Sanja Fidler and Marco Pavone and Yue Wang},
-    journal={arXiv preprint arXiv:2311.02077},
-    year={2023}
-}
-'''
 
 import itertools
 import logging
@@ -111,6 +101,9 @@ def build_estimator_and_propnet_from_cfg(
             ],
             n_features_per_level=nerf_cfg.propnet.xyz_encoder.n_features_per_level,
             unbounded=nerf_cfg.unbounded,
+            contract_method=nerf_cfg.contract_method,
+            inner_range=nerf_cfg.inner_range,
+            contract_ratio=nerf_cfg.contract_ratio
         ).to(device)
         for i in range(len(nerf_cfg.propnet.num_samples_per_prop))
     ]

@@ -17,7 +17,7 @@ def contract_inner(positions: Tensor, inner_range:Tensor, contract_ratio:float) 
     """
     Contract the input positions to the inner range normalised ones using piecewise projective function.
     """
-    # similar to the one in DistillNeRF paper
+    # similar to the one in DistillNeRF paper, aabb is at [0, 1]
     normed_positions = torch.where(torch.abs(positions) < inner_range, positions / inner_range * contract_ratio,
                     (1 - inner_range / torch.abs(positions) * (1 - contract_ratio))
                      * positions / torch.abs(positions))
@@ -29,11 +29,11 @@ def decontract_inner(normed_positions: Tensor, inner_range:Tensor, contract_rati
     """
     Decontract the normed inner range positions using piecewise projective function.
     """
-    # similar to the one in DistillNeRF paper
+    # similar to the one in DistillNeRF paper, recover to world coordinates
     positions = torch.where(torch.abs(normed_positions) < contract_ratio, normed_positions * inner_range / contract_ratio, 
                     inner_range * (1 - contract_ratio) / (1 - torch.abs(normed_positions))
                     * normed_positions / torch.abs(normed_positions))
-
+    
     return positions
 
 
