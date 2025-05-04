@@ -1,6 +1,2 @@
-.ipynb_checkpoints/
-__pycache__/
-data/
-logs/
-output/
-configs/
+# Auto detect text files and perform LF normalization
+* text=auto
