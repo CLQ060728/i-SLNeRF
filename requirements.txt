@@ -1,5 +1,5 @@
 wheel==0.45.1
-setuptools==75.8.0
+setuptools==67.6.0
 --extra-index-url https://download.pytorch.org/whl/cu121
 torch==2.1.0
 torchvision==0.16.0
@@ -25,6 +25,9 @@ numpy==1.21.5
 ninja
 tqdm
 gdown
+Pillow==9.2.0
+opencv-python==4.11.0.86
+pandas==1.5.3
 
 # Waymo Open Dataset dependencies
 waymo-open-dataset-tf-2-11-0==1.6.0
