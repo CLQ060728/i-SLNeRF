@@ -346,6 +346,21 @@ class ScenePixelSource(abc.ABC):
                                     back_camera_position.max(dim=0)[0][idx],
                                     back_right_camera_position.max(dim=0)[0][idx])
         
+        # extend aabb by 40 meters along forward direction and 40 meters along the left/right direction
+        # aabb direction: x, y, z: front, left, up
+        aabb_max[0] += 40
+        aabb_max[1] += 40
+        # when the car is driving uphills
+        aabb_max[2] = min(aabb_max[2] + 20, 20)
+
+        # for waymo, there will be a lot of waste of space because we don't have images in the back,
+        # it's more reasonable to extend the aabb only by a small amount, e.g., 5 meters
+        # we use 40 meters here for a more general case
+        aabb_min[0] -= 40
+        aabb_min[1] -= 40
+        # when a car is driving downhills
+        aabb_min[2] = max(aabb_min[2] - 5, -5)
+
         aabb = torch.tensor([*aabb_min, *aabb_max])
         logger.info(f"[Pixel] Auto AABB from cameras: {aabb}")
         
@@ -395,6 +410,7 @@ class ScenePixelSource(abc.ABC):
         aabb_min[1] -= 40
         # when a car is driving downhills
         aabb_min[2] = max(aabb_min[2] - 5, -5)
+        
         aabb = torch.tensor([*aabb_min, *aabb_max])
         logger.info(f"[Pixel] Auto AABB from camera: {aabb}")
         
