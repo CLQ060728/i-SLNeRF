@@ -123,7 +123,13 @@ def setup(args):
     cfg.log_dir = log_dir
     cfg.nerf.model.num_cams = cfg.data.pixel_source.num_cams
     cfg.nerf.model.unbounded = cfg.nerf.unbounded
+    cfg.nerf.model.contract_method = cfg.nerf.contract_method
+    cfg.nerf.model.inner_range = cfg.nerf.inner_range
+    cfg.nerf.model.contract_ratio = cfg.nerf.contract_ratio
     cfg.nerf.propnet.unbounded = cfg.nerf.unbounded
+    cfg.nerf.propnet.contract_method = cfg.nerf.contract_method
+    cfg.nerf.propnet.inner_range = cfg.nerf.inner_range
+    cfg.nerf.propnet.contract_ratio = cfg.nerf.contract_ratio
     cfg.nerf.model.resume_from = cfg.resume_from
     os.makedirs(log_dir, exist_ok=True)
     for folder in [
