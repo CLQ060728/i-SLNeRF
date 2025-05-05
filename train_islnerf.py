@@ -693,6 +693,7 @@ def compute_lidar_losses(cfg, step, dataset, model, proposal_estimator, proposal
                 name="lidar_range_loss",
             )
         )
+        epsilon = None
         if (
             line_of_sight_loss_fn is not None
             and step > cfg.supervision.depth.line_of_sight.start_iter
