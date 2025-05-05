@@ -587,7 +587,7 @@ def compute_pixel_losses(cfg, step, dataset, model, proposal_estimator, proposal
                     f"sky_loss_type {cfg.supervision.sky.loss_type} not implemented"
                 )
         # vision depth loss
-        if depth_loss_fn is not None:
+        if depth_loss_fn is not None and not cfg.lidar_source.load_lidar:
             pixel_loss_dict.update(
                 depth_loss_fn(
                     render_results["depth"],
