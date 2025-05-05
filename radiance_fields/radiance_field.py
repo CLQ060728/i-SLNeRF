@@ -31,7 +31,7 @@ class RadianceField(nn.Module):
         density_activation: Callable = lambda x: trunc_exp(x - 1),
         unbounded: bool = True,
         contract_method: str = "aabb_bounded",
-        innner_range: List[float] = [50.0, 50.0, 10.0],
+        inner_range: List[float] = [50.0, 50.0, 10.0],
         contract_ratio: float = 0.5,
         geometry_feature_dim: int = 15,
         base_mlp_layer_width: int = 64,
@@ -53,7 +53,7 @@ class RadianceField(nn.Module):
         self.register_buffer("aabb", aabb)
         self.unbounded = unbounded
         self.contract_method = contract_method
-        self.innner_range = torch.tensor(innner_range, dtype=torch.float32)
+        self.inner_range = torch.tensor(inner_range, dtype=torch.float32)
         self.contract_ratio = contract_ratio
         self.num_cams = num_cams
         self.num_dims = num_dims
@@ -223,7 +223,7 @@ class RadianceField(nn.Module):
                 normed_positions = contract(positions, self.aabb, ord=float("inf"))
             elif self.contract_method == "inner_bounded":
                 # use inner range to contract the positions for cuboid aabb
-                normed_positions = contract_inner(positions, self.innner_range, self.contract_ratio)
+                normed_positions = contract_inner(positions, self.inner_range, self.contract_ratio)
             else:
                 raise NotImplementedError(
                     f"Contract method {self.contract_method} is not implemented."
