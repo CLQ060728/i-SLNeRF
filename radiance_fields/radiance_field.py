@@ -221,7 +221,7 @@ class RadianceField(nn.Module):
             if self.contract_method == "aabb_bounded":
                 # use infinte norm to contract the positions for cuboid aabb
                 normed_positions = contract(positions, self.aabb, ord=float("inf"))
-            elif self.contract_method == "inner_bounded":
+            elif self.contract_method == "inner_outer":
                 # use inner range to contract the positions for cuboid aabb
                 normed_positions = contract_inner(positions, self.inner_range, self.contract_ratio)
             else:
@@ -665,7 +665,7 @@ class DensityField(nn.Module):
             if self.contract_method == "aabb_bounded":
                 # use infinte norm to contract the positions for cuboid aabb
                 positions = contract(positions, self.aabb, ord=float("inf"))
-            elif self.contract_method == "inner_bounded":
+            elif self.contract_method == "inner_outer":
                 # use inner range to contract the positions for cuboid aabb
                 positions = contract_inner(positions, self.inner_range, self.contract_ratio)
             else:
