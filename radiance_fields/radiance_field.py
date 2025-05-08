@@ -384,7 +384,7 @@ class RadianceField(nn.Module):
                 )
                 # overwrite dynamic feats using temporal aggregation results
                 dynamic_feats = temporal_aggregation_results["dynamic_feats"]
-                # to be studied
+                
                 temporal_aggregation_results[
                     "current_dynamic_hash_encodings"
                 ] = dynamic_hash_encodings
@@ -519,7 +519,7 @@ class RadianceField(nn.Module):
             "dynamic_feats": aggregated_dynamic_feats,
             "forward_pred_backward_flow": forward_pred_flow[..., 3:],
             "backward_pred_forward_flow": backward_pred_flow[..., :3],
-            # to be studied
+            
             "forward_dynamic_hash_encodings": forward_dynamic_hash_encodings,
             "backward_dynamic_hash_encodings": backward_dynamic_hash_encodings,
         }

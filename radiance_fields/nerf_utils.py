@@ -22,7 +22,7 @@ def contract_inner(positions: Tensor, inner_range:Tensor, contract_ratio:float) 
     normed_positions = torch.where(torch.abs(positions) <= inner_range, positions / inner_range * contract_ratio,
                     (1 - inner_range / torch.abs(positions) * (1 - contract_ratio))
                      * positions / torch.abs(positions))
-    normed_positions[normed_positions.isnan()] = 0.0
+    normed_positions.nan_to_num_(nan=0.0, posinf=1.0, neginf=1.0)
     
     return normed_positions
 
@@ -55,6 +55,7 @@ def contract(
     mag = torch.linalg.norm(x, ord=ord, dim=-1, keepdim=True)
     x = torch.where(mag < 1, x, (2 - 1 / mag) * (x / mag))
     x = x / 4 + 0.5  # [-inf, inf] is at [0, 1]
+    
     return x
 
 

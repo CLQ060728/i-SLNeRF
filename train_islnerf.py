@@ -604,6 +604,7 @@ def compute_pixel_losses(cfg, step, dataset, model, proposal_estimator, proposal
                 )
             )
         if shadow_loss_fn is not None:
+            render_results["shadow_ratio"].nan_to_num_(nan=1e-6, posinf=1.0, neginf=1.0)
             pixel_loss_dict.update(
                 shadow_loss_fn(
                     render_results["shadow_ratio"],
@@ -611,6 +612,10 @@ def compute_pixel_losses(cfg, step, dataset, model, proposal_estimator, proposal
             )
         # cyclic flow loss
         if "forward_flow" in render_results["extras"]:
+            render_results["extras"]["forward_flow"].nan_to_num_(nan=1e-6, posinf=1.0, neginf=1.0)
+            render_results["extras"]["backward_flow"].nan_to_num_(nan=1e-6, posinf=1.0, neginf=1.0)
+            render_results["extras"]["forward_pred_backward_flow"].nan_to_num_(nan=1e-6, posinf=1.0, neginf=1.0)
+            render_results["extras"]["backward_pred_forward_flow"].nan_to_num_(nan=1e-6, posinf=1.0, neginf=1.0)
             cycle_loss = (
                 0.5
                 * (
