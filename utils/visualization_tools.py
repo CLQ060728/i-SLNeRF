@@ -238,7 +238,7 @@ def scene_flow_to_rgb(
         )
 
     # For scene flow, it's reasonable to assume displacements in x and y directions only for visualization pursposes.
-    flow.nan_to_num_(nan=0.0, posinf=1.0, neginf=1.0)
+    flow.nan_to_num_(nan=0.0, posinf=0.0, neginf=0.0)
     complex_flow = flow[..., 0] + 1j * flow[..., 1]
     radius, angle = torch.abs(complex_flow), torch.angle(complex_flow)
     if flow_max_radius is None:

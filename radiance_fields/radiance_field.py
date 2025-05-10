@@ -223,7 +223,8 @@ class RadianceField(nn.Module):
                 normed_positions = contract(positions, self.aabb, ord=float("inf"))
             elif self.contract_method == "inner_outer":
                 # use inner range to contract the positions for cuboid aabb
-                normed_positions = contract_inner(positions, self.inner_range, self.contract_ratio)
+                normed_positions = contract_inner(positions, self.aabb, self.inner_range,
+                                                  self.contract_ratio)
             else:
                 raise NotImplementedError(
                     f"Contract method {self.contract_method} is not implemented."
@@ -667,7 +668,7 @@ class DensityField(nn.Module):
                 positions = contract(positions, self.aabb, ord=float("inf"))
             elif self.contract_method == "inner_outer":
                 # use inner range to contract the positions for cuboid aabb
-                positions = contract_inner(positions, self.inner_range, self.contract_ratio)
+                positions = contract_inner(positions, self.aabb, self.inner_range, self.contract_ratio)
             else:
                 raise NotImplementedError(
                     f"Contract method {self.contract_method} is not implemented."

@@ -13,31 +13,45 @@ from torch.cuda.amp import custom_bwd, custom_fwd
 logger = logging.getLogger()
 
 
-def contract_inner(positions: Tensor, inner_range:Tensor, contract_ratio:float) -> Tensor:
+def contract_inner(positions: Tensor, aabb:Tensor, inner_range:Tensor, contract_ratio:float) -> Tensor:
     """
     Contract the input positions to the inner range normalised ones using piecewise projective function.
     """
     # similar to the one in DistillNeRF paper, aabb is at [0, 1]
     inner_range = inner_range.to(positions.device)
-    normed_positions = torch.where(torch.abs(positions) <= inner_range, positions / inner_range * contract_ratio,
-                    (1 - inner_range / torch.abs(positions) * (1 - contract_ratio))
-                     * positions / torch.abs(positions))
+    aabb_min, aabb_max = torch.split(aabb, 3, dim=-1)
+    positions = (positions - aabb_min) / (aabb_max - aabb_min)
+    inner_range = (inner_range - aabb_min) / (aabb_max - aabb_min)
+    normed_positions = torch.where(positions <= inner_range, positions * contract_ratio,
+                                   (1 - (1 / torch.abs(positions)) * (1 - contract_ratio) ** 2)
+                                    * positions / torch.abs(positions))
+    # normed_positions = torch.where(max_norm <= inner_range, positions / inner_range * contract_ratio,
+    #                 (1 - (inner_range / torch.abs(positions)) * (1 / (2 * contract_ratio))
+    #                  * (1 - contract_ratio))
+    #                  * positions / torch.abs(positions))
+    # proportion = positions / inner_range
+    # proportion_abs = torch.abs(proportion)
+    # normed_positions = torch.where(proportion_abs <= 1, proportion * contract_ratio,
+    #                 (proportion / proportion_abs) * (1 - ((1 - contract_ratio) ** 2
+    #                 / (contract_ratio * proportion_abs - 2 * contract_ratio + 1))))
     normed_positions.nan_to_num_(nan=0.0, posinf=1.0, neginf=1.0)
+    # normed_positions = (normed_positions + 1) / 2  # [-1, 1] to [0, 1]
     
     return normed_positions
 
 
-def decontract_inner(normed_positions: Tensor, inner_range:Tensor, contract_ratio:float) -> Tensor:
+# def decontract_inner(normed_positions: Tensor, inner_range:Tensor, contract_ratio:float) -> Tensor:
     """
     Decontract the normed inner range positions using piecewise projective function.
     """
     # similar to the one in DistillNeRF paper, recover to world coordinates
-    inner_range = inner_range.to(normed_positions.device)
-    positions = torch.where(torch.abs(normed_positions) <= contract_ratio, normed_positions * inner_range / contract_ratio, 
-                    inner_range * (1 - contract_ratio) / (1 - torch.abs(normed_positions))
-                    * normed_positions / torch.abs(normed_positions))
+    # inner_range = inner_range.to(normed_positions.device)
+    # positions = torch.where(torch.abs(normed_positions) <= contract_ratio, normed_positions * inner_range / contract_ratio, 
+    #                 inner_range * (1 - contract_ratio) / (1 - torch.abs(normed_positions))
+    #                 * normed_positions / torch.abs(normed_positions))
+
     
-    return positions
+    # return positions
 
 
 def contract(
