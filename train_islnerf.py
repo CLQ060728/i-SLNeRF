@@ -799,7 +799,7 @@ def log_metrics(metric_logger, pixel_data_dict, lidar_data_dict, render_results,
 def save_checkpoint(step, cfg, model, proposal_estimator, proposal_networks, optimizer, scheduler):
     # ------ save checkpoints -------- #
     if step > 0 and (
-        ((step % cfg.logging.saveckpt_freq == 0) or (step == cfg.optim.num_iters))
+        ((step % cfg.logging.saveckpt_freq == 0 and step >= 16000) or (step == cfg.optim.num_iters))
         and (cfg.resume_from is None)
     ):
         checkpoint = {

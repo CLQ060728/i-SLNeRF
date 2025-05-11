@@ -36,6 +36,13 @@ class RadianceField(nn.Module):
         geometry_feature_dim: int = 15,
         base_mlp_layer_width: int = 64,
         head_mlp_layer_width: int = 64,
+        enable_segmentation_head: bool = False,
+        split_semantic_instance: bool = False,
+        segmentation_feature_dim: int = 128,
+        semantic_hidden_dim: int = 64,
+        instance_hidden_dim: int = 64,
+        semantic_embedding_dim: int = 128,
+        instance_embedding_dim: int = 128,
         enable_cam_embedding: bool = False,
         enable_img_embedding: bool = False,
         num_cams: int = 3,
@@ -72,7 +79,7 @@ class RadianceField(nn.Module):
             nn.Linear(self.xyz_encoder.n_output_dims, base_mlp_layer_width),
             nn.ReLU(),
             nn.Linear(
-                base_mlp_layer_width, geometry_feature_dim
+                base_mlp_layer_width, geometry_feature_dim + segmentation_feature_dim
             ),
         )
 
@@ -88,7 +95,7 @@ class RadianceField(nn.Module):
                 nn.ReLU(),
                 nn.Linear(
                     base_mlp_layer_width,
-                    geometry_feature_dim,
+                    geometry_feature_dim + segmentation_feature_dim
                 ),
             )
 
@@ -164,6 +171,51 @@ class RadianceField(nn.Module):
                 hidden_dims=head_mlp_layer_width,
                 skip_connections=[1],
             )
+            if enable_segmentation_head:
+                self.segmentation_sky_head = nn.Sequential(
+                    nn.Linear(
+                        self.direction_encoding.n_output_dims,
+                        instance_hidden_dim,
+                    ),
+                    nn.ReLU(),
+                    nn.Linear(instance_hidden_dim, instance_hidden_dim * 2),
+                    nn.ReLU(),
+                    nn.Linear(instance_hidden_dim * 2, instance_embedding_dim)
+                )
+        # ======== Segmentation Head ======== #
+        self.enable_segmentation_head = enable_segmentation_head
+        self.split_semantic_instance = split_semantic_instance
+        if self.enable_segmentation_head:
+            if self.split_semantic_instance:
+                # split semantic and instance branches
+                self.semantic_head = nn.Sequential(
+                nn.Linear(segmentation_feature_dim // 2, semantic_hidden_dim),
+                nn.ReLU(),
+                nn.Linear(semantic_hidden_dim, semantic_hidden_dim * 2),
+                nn.ReLU(),
+                nn.Linear(semantic_hidden_dim * 2, semantic_embedding_dim)
+                )
+                self.instance_head = nn.Sequential(
+                    nn.Linear(segmentation_feature_dim // 2, instance_hidden_dim),
+                    nn.ReLU(),
+                    nn.Linear(instance_hidden_dim, instance_hidden_dim * 2),
+                    nn.ReLU(),
+                    nn.Linear(instance_hidden_dim * 2, instance_embedding_dim)
+                )
+            else:
+                # shared branch for semantic and instance
+                self.instance_head = nn.Sequential(
+                    nn.Linear(segmentation_feature_dim, instance_hidden_dim),
+                    nn.ReLU(),
+                    nn.Linear(instance_hidden_dim, instance_hidden_dim * 2),
+                    nn.ReLU(),
+                    nn.Linear(instance_hidden_dim * 2, instance_embedding_dim)
+                )
+                self.semantic_head = nn.Sequential(
+                    nn.Linear(instance_embedding_dim, semantic_hidden_dim),
+                    nn.ReLU(),
+                    nn.Linear(semantic_hidden_dim, semantic_embedding_dim)
+                )
 
 
     def register_normalized_training_timesteps(

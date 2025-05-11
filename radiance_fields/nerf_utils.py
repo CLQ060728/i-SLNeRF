@@ -23,19 +23,10 @@ def contract_inner(positions: Tensor, aabb:Tensor, inner_range:Tensor, contract_
     positions = (positions - aabb_min) / (aabb_max - aabb_min)
     inner_range = (inner_range - aabb_min) / (aabb_max - aabb_min)
     normed_positions = torch.where(positions <= inner_range, positions * contract_ratio,
-                                   (1 - (1 / torch.abs(positions)) * (1 - contract_ratio) ** 2)
+                                   (1 - (1 / torch.abs(positions)) * (1 - contract_ratio))
                                     * positions / torch.abs(positions))
-    # normed_positions = torch.where(max_norm <= inner_range, positions / inner_range * contract_ratio,
-    #                 (1 - (inner_range / torch.abs(positions)) * (1 / (2 * contract_ratio))
-    #                  * (1 - contract_ratio))
-    #                  * positions / torch.abs(positions))
-    # proportion = positions / inner_range
-    # proportion_abs = torch.abs(proportion)
-    # normed_positions = torch.where(proportion_abs <= 1, proportion * contract_ratio,
-    #                 (proportion / proportion_abs) * (1 - ((1 - contract_ratio) ** 2
-    #                 / (contract_ratio * proportion_abs - 2 * contract_ratio + 1))))
+    
     normed_positions.nan_to_num_(nan=0.0, posinf=1.0, neginf=1.0)
-    # normed_positions = (normed_positions + 1) / 2  # [-1, 1] to [0, 1]
     
     return normed_positions
 
@@ -118,3 +109,17 @@ class _TruncExp(torch.autograd.Function):  # pylint: disable=abstract-method
 
 
 trunc_exp = _TruncExp.apply
+
+
+
+###### backups ########
+# normed_positions = torch.where(max_norm <= inner_range, positions / inner_range * contract_ratio,
+    #                 (1 - (inner_range / torch.abs(positions)) * (1 / (2 * contract_ratio))
+    #                  * (1 - contract_ratio))
+    #                  * positions / torch.abs(positions))
+    # proportion = positions / inner_range
+    # proportion_abs = torch.abs(proportion)
+    # normed_positions = torch.where(proportion_abs <= 1, proportion * contract_ratio,
+    #                 (proportion / proportion_abs) * (1 - ((1 - contract_ratio) ** 2
+    #                 / (contract_ratio * proportion_abs - 2 * contract_ratio + 1))))
+    # normed_positions = (normed_positions + 1) / 2  # [-1, 1] to [0, 1]
