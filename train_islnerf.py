@@ -535,7 +535,7 @@ def build_dynamic_losses(cfg):
 
 
 def buid_segmentation_losses(cfg):
-    if cfg.data.load_segmentation and cfg.nerf.model.head.enable_segmentation_head:
+    if cfg.data.pixel_source.load_segmentation and cfg.nerf.model.head.enable_segmentation_head:
         semantic_classfication_loss_fn = loss.Semantic_Classification_Loss(
             coef=cfg.supervision.segmentation.semantic.loss_coef
         )
@@ -779,21 +779,21 @@ def compute_segmentation_loss(cfg, step, dataset, model, proposal_estimator, pro
                               proposal_requires_grad_fn, semantic_loss_dict, instance_loss_dict,
                               semantic_classfication_loss_fn, instance_consistency_loss_fn, optimizer,
                               semantic_grad_scaler, instance_grad_scaler, scheduler):
-    if cfg.data.load_segmentation and cfg.nerf.model.head.enable_segmentation_head and \
+    if cfg.data.pixel_source.load_segmentation and cfg.nerf.model.head.enable_segmentation_head and \
         step >= cfg.supervision.segmentation.semantic.start_iter:
         proposal_requires_grad = proposal_requires_grad_fn(int(step))
         i = torch.randint(0, len(dataset.train_pixel_set), (1,)).item()
-        pixel_data_dict = dataset.train_pixel_set[i]
-        for k, v in pixel_data_dict.items():
+        seg_pixel_data_dict = dataset.train_pixel_set[i]
+        for k, v in seg_pixel_data_dict.items():
             if isinstance(v, torch.Tensor):
-                pixel_data_dict[k] = v.cuda(non_blocking=True)
+                seg_pixel_data_dict[k] = v.cuda(non_blocking=True)
         
         # ------ pixel-wise supervision -------- #
         segmentation_render_results = render_rays(
             radiance_field=model,
             proposal_estimator=proposal_estimator,
             proposal_networks=proposal_networks,
-            data_dict=pixel_data_dict,
+            data_dict=seg_pixel_data_dict,
             cfg=cfg,
             proposal_requires_grad=proposal_requires_grad
         )
@@ -809,7 +809,7 @@ def compute_segmentation_loss(cfg, step, dataset, model, proposal_estimator, pro
         # compute semantic losses
         semantic_loss_dict.update(semantic_classfication_loss_fn(
             segmentation_render_results["semantic_embedding"],
-            pixel_data_dict["semantic_masks"]
+            seg_pixel_data_dict["semantic_masks"]
             )
         )
         
@@ -823,8 +823,8 @@ def compute_segmentation_loss(cfg, step, dataset, model, proposal_estimator, pro
         if step >= cfg.supervision.segmentation.instance.start_iter:
             instance_loss_dict.update(instance_consistency_loss_fn(
                 segmentation_render_results["instance_embedding"],
-                pixel_data_dict["instance_masks"],
-                pixel_data_dict["instance_confidences"]
+                seg_pixel_data_dict["instance_masks"],
+                seg_pixel_data_dict["instance_confidences"]
                 )
             )
             total_instance_loss = sum(loss for loss in instance_loss_dict.values())
@@ -832,8 +832,12 @@ def compute_segmentation_loss(cfg, step, dataset, model, proposal_estimator, pro
             instance_grad_scaler.scale(total_instance_loss).backward()
             optimizer.step()
             scheduler.step()
-        
-    return total_semantic_loss, total_instance_loss, pixel_data_dict   
+
+    else:
+        total_semantic_loss = -1
+        total_instance_loss = -1
+
+    return total_semantic_loss, total_instance_loss   
 
 
 def log_metrics(metric_logger, pixel_data_dict, lidar_data_dict, render_results, lidar_render_results,
@@ -1068,7 +1072,7 @@ def start_training_loop(metric_logger, all_iters, cfg, args, model, proposal_est
                                                 scheduler, epsilon_start, epsilon_final,
                                                 line_of_sight_loss_decay_weight)
 
-        total_semantic_loss, total_instance_loss, pixel_data_dict =\
+        total_semantic_loss, total_instance_loss =\
             compute_segmentation_loss(cfg, step, dataset, model, proposal_estimator, proposal_networks,
                               proposal_requires_grad_fn, semantic_loss_dict, instance_loss_dict,
                               semantic_classfication_loss_fn, instance_consistency_loss_fn, optimizer,

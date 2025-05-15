@@ -78,7 +78,8 @@ class RadianceField(nn.Module):
         if enable_segmentation_head:
             self.segmentation_feature_dim = segmentation_feature_dim
         else:
-            self.segmentation_feature_dim = 0
+            segmentation_feature_dim = 0
+            self.segmentation_feature_dim = segmentation_feature_dim
 
         # ======== Static Field ======== #
         self.xyz_encoder = xyz_encoder
@@ -1003,7 +1004,7 @@ def build_radiance_field_from_cfg(cfg, verbose=True) -> RadianceField:
         head_mlp_layer_width=cfg.head.head_mlp_layer_width,
         enable_segmentation_head=cfg.head.enable_segmentation_head,
         split_semantic_instance=cfg.head.split_semantic_instance,
-        segmentation_feature_dim=cfg.head.segmentation_feature_dim,
+        segmentation_feature_dim=cfg.neck.segmentation_feature_dim,
         semantic_hidden_dim=cfg.head.semantic_hidden_dim,
         instance_hidden_dim=cfg.head.instance_hidden_dim,
         semantic_embedding_dim=cfg.head.semantic_embedding_dim,
