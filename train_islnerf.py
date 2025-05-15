@@ -433,6 +433,8 @@ def construct_training_objects(cfg, dataset, device):
     optimizer = builders.build_optimizer_from_cfg(cfg=cfg.optim, model=model)
     pixel_grad_scaler = torch.cuda.amp.GradScaler(2**10)
     lidar_grad_scaler = torch.cuda.amp.GradScaler(2**10)
+    semantic_grad_scaler = torch.cuda.amp.GradScaler(2**10)
+    instance_grad_scaler = torch.cuda.amp.GradScaler(2**10)
 
     # ------ build scheduler -------- #
     scheduler = builders.build_scheduler_from_cfg(cfg=cfg.optim, optimizer=optimizer)
@@ -453,7 +455,8 @@ def construct_training_objects(cfg, dataset, device):
         )
     
     return model, proposal_estimator, proposal_networks, optimizer, \
-        scheduler, start_step, pixel_grad_scaler, lidar_grad_scaler
+        scheduler, start_step, pixel_grad_scaler, lidar_grad_scaler, semantic_grad_scaler,\
+        instance_grad_scaler
 
 
 def build_static_losses(cfg):
@@ -485,11 +488,9 @@ def build_static_losses(cfg):
         else:
             line_of_sight_loss_fn = None
     elif not cfg.data.lidar_source.load_lidar and cfg.data.pixel_source.load_depth_map:
-        depth_loss_fn = loss.DepthLoss(
-            loss_type=cfg.supervision.depth.loss_type,
-            coef=cfg.supervision.depth.loss_coef,
-            depth_error_percentile=cfg.supervision.depth.depth_error_percentile,
-            check_nan=cfg.optim.check_nan,
+        depth_loss_fn = loss.VisionDepthLoss(
+            loss_type=cfg.supervision.vision_depth.loss_type,
+            coef=cfg.supervision.vision_depth.loss_coef
         )
         line_of_sight_loss_fn = None
     else:
@@ -531,6 +532,21 @@ def build_dynamic_losses(cfg):
         shadow_loss_fn = None
     
     return dynamic_reg_loss_fn, shadow_loss_fn
+
+
+def buid_segmentation_losses(cfg):
+    if cfg.data.load_segmentation and cfg.nerf.model.head.enable_segmentation_head:
+        semantic_classfication_loss_fn = loss.Semantic_Classification_Loss(
+            coef=cfg.supervision.segmentation.semantic.loss_coef
+        )
+        instance_consistency_loss_fn = loss.Instance_Consistency_Loss(
+            coef=cfg.supervision.segmentation.instance.loss_coef
+        )
+    else:
+        semantic_classfication_loss_fn = None
+        instance_consistency_loss_fn = None
+    
+    return semantic_classfication_loss_fn, instance_consistency_loss_fn
 
 
 def compute_pixel_losses(cfg, step, dataset, model, proposal_estimator, proposal_networks,
@@ -591,8 +607,7 @@ def compute_pixel_losses(cfg, step, dataset, model, proposal_estimator, proposal
             pixel_loss_dict.update(
                 depth_loss_fn(
                     render_results["depth"],
-                    pixel_data_dict["depth_maps"],
-                    name="vision_depth_loss"
+                    pixel_data_dict["depth_maps"]
                 )
             )
         # dynamic and shadow loss
@@ -760,8 +775,70 @@ def compute_lidar_losses(cfg, step, dataset, model, proposal_estimator, proposal
     return total_lidar_loss, lidar_data_dict, lidar_render_results, epsilon
 
 
+def compute_segmentation_loss(cfg, step, dataset, model, proposal_estimator, proposal_networks,
+                              proposal_requires_grad_fn, semantic_loss_dict, instance_loss_dict,
+                              semantic_classfication_loss_fn, instance_consistency_loss_fn, optimizer,
+                              semantic_grad_scaler, instance_grad_scaler, scheduler):
+    if cfg.data.load_segmentation and cfg.nerf.model.head.enable_segmentation_head and \
+        step >= cfg.supervision.segmentation.semantic.start_iter:
+        proposal_requires_grad = proposal_requires_grad_fn(int(step))
+        i = torch.randint(0, len(dataset.train_pixel_set), (1,)).item()
+        pixel_data_dict = dataset.train_pixel_set[i]
+        for k, v in pixel_data_dict.items():
+            if isinstance(v, torch.Tensor):
+                pixel_data_dict[k] = v.cuda(non_blocking=True)
+        
+        # ------ pixel-wise supervision -------- #
+        segmentation_render_results = render_rays(
+            radiance_field=model,
+            proposal_estimator=proposal_estimator,
+            proposal_networks=proposal_networks,
+            data_dict=pixel_data_dict,
+            cfg=cfg,
+            proposal_requires_grad=proposal_requires_grad
+        )
+        proposal_estimator.update_every_n_steps(
+            segmentation_render_results["extras"]["trans"],
+            proposal_requires_grad,
+            loss_scaler=1024,
+        )
+
+        total_semantic_loss = 0
+        total_instance_loss = 0
+
+        # compute semantic losses
+        semantic_loss_dict.update(semantic_classfication_loss_fn(
+            segmentation_render_results["semantic_embedding"],
+            pixel_data_dict["semantic_masks"]
+            )
+        )
+        
+        total_semantic_loss = sum(loss for loss in semantic_loss_dict.values())
+        optimizer.zero_grad()
+        semantic_grad_scaler.scale(total_semantic_loss).backward()
+        optimizer.step()
+        scheduler.step()
+        
+        # compute instance consistency loss
+        if step >= cfg.supervision.segmentation.instance.start_iter:
+            instance_loss_dict.update(instance_consistency_loss_fn(
+                segmentation_render_results["instance_embedding"],
+                pixel_data_dict["instance_masks"],
+                pixel_data_dict["instance_confidences"]
+                )
+            )
+            total_instance_loss = sum(loss for loss in instance_loss_dict.values())
+            optimizer.zero_grad()
+            instance_grad_scaler.scale(total_instance_loss).backward()
+            optimizer.step()
+            scheduler.step()
+        
+    return total_semantic_loss, total_instance_loss, pixel_data_dict   
+
+
 def log_metrics(metric_logger, pixel_data_dict, lidar_data_dict, render_results, lidar_render_results,
-                optimizer, pixel_loss_dict, lidar_loss_dict, total_pixel_loss, total_lidar_loss, stats,
+                optimizer, pixel_loss_dict, lidar_loss_dict, semantic_loss_dict, instance_loss_dict,
+                total_pixel_loss, total_lidar_loss, total_semantic_loss, total_instance_loss, stats,
                 epsilon, args):
     # ------ log metric values -------- #
     if pixel_data_dict is not None:
@@ -782,8 +859,19 @@ def log_metrics(metric_logger, pixel_data_dict, lidar_data_dict, render_results,
         )
         metric_logger.update(range_rmse=range_rmse)
 
+    if semantic_loss_dict is not None:
+        metric_logger.update(
+            total_semantic_loss=total_semantic_loss
+        )
+    if instance_loss_dict is not None:
+        metric_logger.update(
+            total_instance_loss=total_instance_loss
+        )
+
     metric_logger.update(**{k: v.item() for k, v in pixel_loss_dict.items()})
     metric_logger.update(**{k: v.item() for k, v in lidar_loss_dict.items()})
+    metric_logger.update(**{k: v.item() for k, v in semantic_loss_dict.items()})
+    metric_logger.update(**{k: v.item() for k, v in instance_loss_dict.items()})
     metric_logger.update(lr=optimizer.param_groups[0]["lr"])
     if stats is not None:
         metric_logger.update(**{k: v.item() for k, v in stats.items()})
@@ -953,29 +1041,17 @@ def visualize_during_training(step, cfg, model, proposal_networks, proposal_esti
 
 def start_training_loop(metric_logger, all_iters, cfg, args, model, proposal_estimator, proposal_networks,
                         proposal_requires_grad_fn, optimizer, scheduler, pixel_grad_scaler, lidar_grad_scaler,
-                        dataset, rgb_loss_fn, depth_loss_fn, line_of_sight_loss_fn, epsilon_start, epsilon_final,
-                        line_of_sight_loss_decay_weight, sky_loss_fn, dynamic_reg_loss_fn, shadow_loss_fn):
+                        semantic_grad_scaler, instance_grad_scaler, dataset, rgb_loss_fn, depth_loss_fn,
+                        line_of_sight_loss_fn, epsilon_start, epsilon_final, line_of_sight_loss_decay_weight,
+                        sky_loss_fn, dynamic_reg_loss_fn, shadow_loss_fn, semantic_classfication_loss_fn,
+                        instance_consistency_loss_fn):
     for step in metric_logger.log_every(all_iters, cfg.logging.print_freq):
         model.train()
         proposal_estimator.train()
         for p in proposal_networks:
             p.train()
         
-        pixel_loss_dict, lidar_loss_dict = {}, {}
-
-        # ------ line of sight loss decay -------- #
-        if (
-            step > cfg.supervision.depth.line_of_sight.start_iter
-            and (step - cfg.supervision.depth.line_of_sight.start_iter)
-            % cfg.supervision.depth.line_of_sight.decay_steps
-            == 0
-        ):
-            line_of_sight_loss_decay_weight *= (
-                cfg.supervision.depth.line_of_sight.decay_rate
-            )
-            logger.info(
-                f"line_of_sight_loss_decay_weight: {line_of_sight_loss_decay_weight}"
-            )
+        pixel_loss_dict, lidar_loss_dict, semantic_loss_dict, instance_loss_dict = {}, {}, {}, {}
 
         stats, total_pixel_loss, pixel_data_dict, render_results =\
                                   compute_pixel_losses(cfg, step, dataset, model, proposal_estimator,
@@ -992,9 +1068,16 @@ def start_training_loop(metric_logger, all_iters, cfg, args, model, proposal_est
                                                 scheduler, epsilon_start, epsilon_final,
                                                 line_of_sight_loss_decay_weight)
 
+        total_semantic_loss, total_instance_loss, pixel_data_dict =\
+            compute_segmentation_loss(cfg, step, dataset, model, proposal_estimator, proposal_networks,
+                              proposal_requires_grad_fn, semantic_loss_dict, instance_loss_dict,
+                              semantic_classfication_loss_fn, instance_consistency_loss_fn, optimizer,
+                              semantic_grad_scaler, instance_grad_scaler, scheduler)
+
         log_metrics(metric_logger, pixel_data_dict, lidar_data_dict, render_results, lidar_render_results,
-                    optimizer, pixel_loss_dict, lidar_loss_dict, total_pixel_loss, total_lidar_loss, stats,
-                    epsilon, args)
+                optimizer, pixel_loss_dict, lidar_loss_dict, semantic_loss_dict, instance_loss_dict,
+                total_pixel_loss, total_lidar_loss, total_semantic_loss, total_instance_loss, stats,
+                epsilon, args)
 
         save_checkpoint(step, cfg, model, proposal_estimator, proposal_networks, optimizer, scheduler)
 
@@ -1020,8 +1103,8 @@ def main(args):
     # ------ build proposal networks and models -------- #
     # we input the dataset to the model builder to set some hyper-parameters
     model, proposal_estimator, proposal_networks, optimizer, \
-        scheduler, start_step, pixel_grad_scaler, lidar_grad_scaler = construct_training_objects(cfg,
-                                                                          dataset, device)
+        scheduler, start_step, pixel_grad_scaler, lidar_grad_scaler,\
+            semantic_grad_scaler, instance_grad_scaler = construct_training_objects(cfg, dataset, device)
 
     if args.eval_only:
         if cfg.nerf.model.head.enable_flow_branch:
@@ -1048,6 +1131,7 @@ def main(args):
     # ------ build losses -------- #
     rgb_loss_fn, depth_loss_fn, line_of_sight_loss_fn, sky_loss_fn = build_static_losses(cfg)
     dynamic_reg_loss_fn, shadow_loss_fn = build_dynamic_losses(cfg)
+    semantic_classfication_loss_fn, instance_consistency_loss_fn = buid_segmentation_losses(cfg)
 
     metrics_file = os.path.join(cfg.log_dir, "metrics.json")
     metric_logger = MetricLogger(delimiter="  ", output_file=metrics_file)
@@ -1062,9 +1146,9 @@ def main(args):
     step = start_training_loop(
         metric_logger, all_iters, cfg, args, model, proposal_estimator, proposal_networks,
         proposal_requires_grad_fn, optimizer, scheduler, pixel_grad_scaler, lidar_grad_scaler,
-        dataset, rgb_loss_fn, depth_loss_fn, line_of_sight_loss_fn, epsilon_start, epsilon_final,
-        line_of_sight_loss_decay_weight, sky_loss_fn, dynamic_reg_loss_fn, shadow_loss_fn
-    )    
+        semantic_grad_scaler, instance_grad_scaler, dataset, rgb_loss_fn, depth_loss_fn, line_of_sight_loss_fn,
+        epsilon_start, epsilon_final, line_of_sight_loss_decay_weight, sky_loss_fn, dynamic_reg_loss_fn,
+        shadow_loss_fn, semantic_classfication_loss_fn, instance_consistency_loss_fn)    
 
     do_evaluation(
         step=step,

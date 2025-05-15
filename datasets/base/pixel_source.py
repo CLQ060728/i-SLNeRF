@@ -114,7 +114,11 @@ class ScenePixelSource(abc.ABC):
     sky_masks: Tensor = None
     # the vision depth maps of all images, shape: (num_imgs, load_size[0], load_size[1])
     depth_maps: Tensor = None
-
+    # the segmentation masks of all images, shape: (num_imgs, load_size[0], load_size[1], total_features)
+    seg_masks: Tensor = None
+    semantic_masks: Tensor = None
+    instance_masks: Tensor = None
+    instance_confidences: Tensor = None
     # importance sampling weights of all images,
     #   shape: (num_imgs, load_size[0] // buffer_scale, load_size[1] // buffer_scale)
     pixel_error_maps: Tensor = None
@@ -138,6 +142,7 @@ class ScenePixelSource(abc.ABC):
         self.img_filepaths = []
         self.sky_mask_filepaths = []
         self.depth_map_filepaths = []
+        self.seg_mask_filepaths = []
         raise NotImplementedError
 
     @abc.abstractmethod
@@ -156,6 +161,7 @@ class ScenePixelSource(abc.ABC):
         self.load_rgb()
         self.load_sky_mask()
         self.load_depth_map()
+        self.load_segmentation_mask()
         # build the pixel error buffer
         self.build_pixel_error_buffer()
         logger.info("[Pixel] All Pixel Data loaded.")
@@ -173,6 +179,12 @@ class ScenePixelSource(abc.ABC):
             self.sky_masks = self.sky_masks.to(device)
         if self.depth_maps is not None:
             self.depth_maps = self.depth_maps.to(device)
+        if self.semantic_masks is not None:
+            self.semantic_masks = self.semantic_masks.to(device)
+        if self.instance_masks is not None:
+            self.instance_masks = self.instance_masks.to(device)
+        if self.instance_confidences is not None:
+            self.instance_confidences = self.instance_confidences.to(device)
         if self.cam_to_worlds is not None:
             self.cam_to_worlds = self.cam_to_worlds.to(device)
         if self.intrinsics is not None:
@@ -252,6 +264,49 @@ class ScenePixelSource(abc.ABC):
             depth_maps.append(depth_map)
         self.depth_maps = torch.from_numpy(np.stack(depth_maps, axis=0)).float()
         logger.info(f"self.depth maps size: {self.depth_maps.size()}")
+
+    def load_segmentation_mask(self) -> None:
+        """
+        Load the segmentation masks if they are available.
+        """
+        if not self.data_cfg.load_segmentation:
+            return
+        semantic_masks = []
+        instance_masks, instance_confidences = [], []
+        
+        for fname in tqdm(
+            self.seg_mask_filepaths, desc="Loading segmentation masks", dynamic_ncols=True
+        ):
+            seg_mask = np.load(fname)
+            
+            # resize them to the load_size
+            semantic_mask = seg_mask[..., 0]
+            instance_mask = seg_mask[..., 1]
+            instance_confidence = seg_mask[..., 2]
+            
+            semantic_mask = semantic_mask.squeeze()
+            instance_mask = instance_mask.squeeze()
+            instance_confidence = instance_confidence.squeeze()
+            semantic_mask = cv2.resize(semantic_mask,
+                                   (self.data_cfg.load_size[1], self.data_cfg.load_size[0]),
+                                    interpolation=cv2.INTER_NEAREST)
+            instance_mask = cv2.resize(instance_mask,
+                                   (self.data_cfg.load_size[1], self.data_cfg.load_size[0]),
+                                    interpolation=cv2.INTER_NEAREST)
+            instance_confidence = cv2.resize(instance_confidence,
+                                   (self.data_cfg.load_size[1], self.data_cfg.load_size[0]),
+                                    interpolation=cv2.INTER_NEAREST)
+            
+            semantic_masks.append(np.array(semantic_mask))
+            instance_masks.append(np.array(instance_mask))
+            instance_confidences.append(np.array(instance_confidence))
+        self.semantic_masks = torch.from_numpy(np.stack(semantic_masks, axis=0)).float()
+        self.instance_masks = torch.from_numpy(np.stack(instance_masks, axis=0)).float()
+        self.instance_confidences = torch.from_numpy(np.stack(instance_confidences, axis=0)).float()
+        
+        logger.info(f"self.semantic_masks size: {self.semantic_masks.size()}")
+        logger.info(f"self.instance_masks size: {self.instance_masks.size()}")
+        logger.info(f"self.instance_confidences size: {self.instance_confidences.size()}")
 
     def get_aabb_specified(self, aabb) -> Tensor:
         """
@@ -628,6 +683,7 @@ class ScenePixelSource(abc.ABC):
             a dict of the sampled rays.
         """
         rgb, sky_mask, depth_map = None, None, None
+        semantic_mask, instance_mask, instance_confidence = None, None, None
         pixel_coords, normalized_timestamps = None, None
         if self.buffer_ratio > 0 and self.pixel_error_buffered:
             num_roi_rays = int(num_rays * self.buffer_ratio)
@@ -655,6 +711,15 @@ class ScenePixelSource(abc.ABC):
         if self.depth_maps is not None:
             depth_map = self.depth_maps[img_idx, y, x]
             print(f"depth_map: {depth_map.size()}\n")
+        if self.semantic_masks is not None:
+            semantic_mask = self.semantic_masks[img_idx, y, x]
+            print(f"semantic_mask: {semantic_mask.size()}\n")
+        if self.instance_masks is not None:
+            instance_mask = self.instance_masks[img_idx, y, x]
+            print(f"instance_mask: {instance_mask.size()}\n")
+        if self.instance_confidences is not None:
+            instance_confidence = self.instance_confidences[img_idx, y, x]
+            print(f"instance_confidence: {instance_confidence.size()}\n")
         if self.normalized_timestamps is not None:
             normalized_timestamps = self.normalized_timestamps[img_idx]
         if self.cam_ids is not None:
@@ -675,7 +740,10 @@ class ScenePixelSource(abc.ABC):
             "cam_idx": camera_id,
             "pixels": rgb,
             "sky_masks": sky_mask,
-            "depth_maps": depth_map
+            "depth_maps": depth_map,
+            "semantic_masks": semantic_mask,
+            "instance_masks": instance_mask,
+            "instance_confidences": instance_confidence
         }
         return {k: v for k, v in data.items() if v is not None}
 
@@ -688,6 +756,7 @@ class ScenePixelSource(abc.ABC):
             a dict containing the rays for rendering the given image index.
         """
         rgb, sky_mask, depth_map = None, None, None
+        semantic_mask, instance_mask, instance_confidence = None, None, None
         pixel_coords, normalized_timestamps = None, None
         if self.images is not None:
             rgb = self.images[img_idx]
@@ -745,6 +814,42 @@ class ScenePixelSource(abc.ABC):
                     .squeeze(0)
                     .squeeze(0)
                 )
+        if self.semantic_masks is not None:
+            semantic_mask = self.semantic_masks[img_idx]
+            if self.downscale_factor != 1.0:
+                semantic_mask = (
+                    torch.nn.functional.interpolate(
+                        semantic_mask.unsqueeze(0).unsqueeze(0),
+                        scale_factor=self.downscale_factor,
+                        mode="nearest",
+                    )
+                    .squeeze(0)
+                    .squeeze(0)
+                )
+        if self.instance_masks is not None:
+            instance_mask = self.instance_masks[img_idx]
+            if self.downscale_factor != 1.0:
+                instance_mask = (
+                    torch.nn.functional.interpolate(
+                        instance_mask.unsqueeze(0).unsqueeze(0),
+                        scale_factor=self.downscale_factor,
+                        mode="nearest",
+                    )
+                    .squeeze(0)
+                    .squeeze(0)
+                )
+        if self.instance_confidences is not None:
+            instance_confidence = self.instance_confidences[img_idx]
+            if self.downscale_factor != 1.0:
+                instance_confidence = (
+                    torch.nn.functional.interpolate(
+                        instance_confidence.unsqueeze(0).unsqueeze(0),
+                        scale_factor=self.downscale_factor,
+                        mode="nearest",
+                    )
+                    .squeeze(0)
+                    .squeeze(0)
+                )
 
         if self.normalized_timestamps is not None:
             normalized_timestamps = torch.full(
@@ -780,7 +885,10 @@ class ScenePixelSource(abc.ABC):
             "cam_idx": camera_id,
             "pixels": rgb,
             "sky_masks": sky_mask,
-            "depth_maps": depth_map
+            "depth_maps": depth_map,
+            "semantic_masks": semantic_mask,
+            "instance_masks": instance_mask,
+            "instance_confidences": instance_confidence
         }
         return {k: v for k, v in data.items() if v is not None}
 

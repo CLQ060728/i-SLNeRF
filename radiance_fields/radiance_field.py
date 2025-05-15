@@ -43,6 +43,7 @@ class RadianceField(nn.Module):
         instance_hidden_dim: int = 64,
         semantic_embedding_dim: int = 128,
         instance_embedding_dim: int = 128,
+        momentum: float = 0.9,
         enable_cam_embedding: bool = False,
         enable_img_embedding: bool = False,
         num_cams: int = 3,
@@ -65,6 +66,7 @@ class RadianceField(nn.Module):
         self.num_cams = num_cams
         self.num_dims = num_dims
         self.density_activation = density_activation
+        self.momentum = momentum
 
         # appearance embedding
         self.enable_cam_embedding = enable_cam_embedding
@@ -72,6 +74,11 @@ class RadianceField(nn.Module):
         self.appearance_embedding_dim = appearance_embedding_dim
 
         self.geometry_feature_dim = geometry_feature_dim
+
+        if enable_segmentation_head:
+            self.segmentation_feature_dim = segmentation_feature_dim
+        else:
+            self.segmentation_feature_dim = 0
 
         # ======== Static Field ======== #
         self.xyz_encoder = xyz_encoder
@@ -172,16 +179,49 @@ class RadianceField(nn.Module):
                 skip_connections=[1],
             )
             if enable_segmentation_head:
-                self.segmentation_sky_head = nn.Sequential(
-                    nn.Linear(
-                        self.direction_encoding.n_output_dims,
-                        instance_hidden_dim,
-                    ),
-                    nn.ReLU(),
-                    nn.Linear(instance_hidden_dim, instance_hidden_dim * 2),
-                    nn.ReLU(),
-                    nn.Linear(instance_hidden_dim * 2, instance_embedding_dim)
-                )
+                if split_semantic_instance:
+                    # split semantic and instance branches
+                    self.semantic_sky_head = nn.Sequential(
+                        nn.Linear(
+                            self.direction_encoding.n_output_dims,
+                            semantic_hidden_dim,
+                        ),
+                        nn.ReLU(),
+                        nn.Linear(semantic_hidden_dim, semantic_hidden_dim * 2),
+                        nn.ReLU(),
+                        nn.Linear(semantic_hidden_dim * 2, semantic_embedding_dim)
+                    )
+                    self.instance_sky_head = nn.Sequential(
+                        nn.Linear(
+                            self.direction_encoding.n_output_dims,
+                            instance_hidden_dim,
+                        ),
+                        nn.ReLU(),
+                        nn.Linear(instance_hidden_dim, instance_hidden_dim * 2),
+                        nn.ReLU(),
+                        nn.Linear(instance_hidden_dim * 2, instance_embedding_dim)
+                    )
+                else:
+                    # shared branch for semantic and instance
+                    self.instance_sky_head = nn.Sequential(
+                        nn.Linear(
+                            self.direction_encoding.n_output_dims,
+                            instance_hidden_dim,
+                        ),
+                        nn.ReLU(),
+                        nn.Linear(instance_hidden_dim, instance_hidden_dim * 2),
+                        nn.ReLU(),
+                        nn.Linear(instance_hidden_dim * 2, instance_embedding_dim)
+                    )
+                    self.semantic_sky_head = nn.Sequential(
+                        nn.Linear(
+                            instance_embedding_dim,
+                            semantic_hidden_dim,
+                        ),
+                        nn.ReLU(),
+                        nn.Linear(semantic_hidden_dim, semantic_embedding_dim)
+                    )
+
         # ======== Segmentation Head ======== #
         self.enable_segmentation_head = enable_segmentation_head
         self.split_semantic_instance = split_semantic_instance
@@ -195,21 +235,35 @@ class RadianceField(nn.Module):
                 nn.ReLU(),
                 nn.Linear(semantic_hidden_dim * 2, semantic_embedding_dim)
                 )
-                self.instance_head = nn.Sequential(
+                self.fast_instance_head = nn.Sequential(
                     nn.Linear(segmentation_feature_dim // 2, instance_hidden_dim),
                     nn.ReLU(),
                     nn.Linear(instance_hidden_dim, instance_hidden_dim * 2),
                     nn.ReLU(),
-                    nn.Linear(instance_hidden_dim * 2, instance_embedding_dim)
+                    nn.Linear(instance_hidden_dim * 2, instance_embedding_dim // 2)
+                )
+                self.slow_instance_head = nn.Sequential(
+                    nn.Linear(segmentation_feature_dim // 2, instance_hidden_dim),
+                    nn.ReLU(),
+                    nn.Linear(instance_hidden_dim, instance_hidden_dim * 2),
+                    nn.ReLU(),
+                    nn.Linear(instance_hidden_dim * 2, instance_embedding_dim  // 2)
                 )
             else:
                 # shared branch for semantic and instance
-                self.instance_head = nn.Sequential(
+                self.fast_instance_head = nn.Sequential(
                     nn.Linear(segmentation_feature_dim, instance_hidden_dim),
                     nn.ReLU(),
                     nn.Linear(instance_hidden_dim, instance_hidden_dim * 2),
                     nn.ReLU(),
-                    nn.Linear(instance_hidden_dim * 2, instance_embedding_dim)
+                    nn.Linear(instance_hidden_dim * 2, instance_embedding_dim // 2)
+                )
+                self.slow_instance_head = nn.Sequential(
+                    nn.Linear(segmentation_feature_dim, instance_hidden_dim),
+                    nn.ReLU(),
+                    nn.Linear(instance_hidden_dim, instance_hidden_dim * 2),
+                    nn.ReLU(),
+                    nn.Linear(instance_hidden_dim * 2, instance_embedding_dim // 2)
                 )
                 self.semantic_head = nn.Sequential(
                     nn.Linear(instance_embedding_dim, semantic_hidden_dim),
@@ -291,6 +345,13 @@ class RadianceField(nn.Module):
         )
         normed_positions = normed_positions * selector.unsqueeze(-1)
         return normed_positions
+
+    def ema_update_slownet(self, slownet, fastnet):
+        # EMA update for the slow network
+        with torch.no_grad():
+            for param_fast, param_slow in zip(fastnet.parameters(), slownet.parameters()):
+                param_slow.data.mul_(self.momentum).add_((1 - self.momentum) * param_fast.detach().data)
+
 
     def forward_static_hash(
         self,
@@ -403,7 +464,24 @@ class RadianceField(nn.Module):
         results_dict = {}
         # forward static branch
         encoded_features, normed_positions = self.forward_static_hash(positions)
-        geo_feats = torch.split(
+        if self.enable_segmentation_head:
+            if self.split_semantic_instance:
+                # split semantic and instance branches
+                geo_feats, semantic_feats, instance_feats = torch.split(
+                    encoded_features,
+                    [self.geometry_feature_dim, self.segmentation_feature_dim // 2,
+                     self.segmentation_feature_dim // 2],
+                    dim=-1,
+                )
+            else:
+                # shared branch for semantic and instance
+                geo_feats, segmentation_feats = torch.split(
+                    encoded_features,
+                    [self.geometry_feature_dim, self.segmentation_feature_dim],
+                    dim=-1,
+                )
+        else:
+            geo_feats = torch.split(
             encoded_features,
             [self.geometry_feature_dim],
             dim=-1,
@@ -442,11 +520,29 @@ class RadianceField(nn.Module):
                     "current_dynamic_hash_encodings"
                 ] = dynamic_hash_encodings
                 results_dict.update(temporal_aggregation_results)
-            dynamic_geo_feats = torch.split(
-                dynamic_feats,
-                [self.geometry_feature_dim],
-                dim=-1,
-            )[0]
+            
+            if self.enable_segmentation_head:
+                if self.split_semantic_instance:
+                    # split semantic and instance branches
+                    dynamic_geo_feats, dynamic_semantic_feats, dynamic_instance_feats = torch.split(
+                        dynamic_feats,
+                        [self.geometry_feature_dim, self.segmentation_feature_dim // 2,
+                         self.segmentation_feature_dim // 2],
+                        dim=-1,
+                    )
+                else:
+                    # shared branch for semantic and instance
+                    dynamic_geo_feats, dynamic_segmentation_feats = torch.split(
+                        dynamic_feats,
+                        [self.geometry_feature_dim, self.segmentation_feature_dim],
+                        dim=-1,
+                    )
+            else:
+                dynamic_geo_feats = torch.split(
+                    dynamic_feats,
+                    [self.geometry_feature_dim],
+                    dim=-1,
+                )[0]
             dynamic_density = self.density_activation(dynamic_geo_feats[..., 0])
             # blend static and dynamic density to get the final density
             density = static_density + dynamic_density
@@ -494,6 +590,71 @@ class RadianceField(nn.Module):
                 rgb_results = self.query_rgb(directions, geo_feats, data_dict=data_dict)
                 results_dict["rgb"] = rgb_results["rgb"]
 
+        if self.enable_segmentation_head:
+            if self.split_semantic_instance:
+                # split semantic and instance branches
+                semantic_embedding = self.semantic_head(semantic_feats)
+                # semantic_embedding = F.softmax(semantic_embedding, dim=-1)
+                fast_instance_embedding = self.fast_instance_head(instance_feats)
+                slow_instance_embedding = self.slow_instance_head(instance_feats)
+                fast_instance_embedding = F.softmax(fast_instance_embedding, dim=-1)
+                slow_instance_embedding = F.softmax(slow_instance_embedding, dim=-1)
+                instance_embedding = torch.cat([fast_instance_embedding, slow_instance_embedding], dim=-1)
+            else:
+                # shared branch for semantic and instance
+                fast_instance_embedding = self.fast_instance_head(segmentation_feats)
+                slow_instance_embedding = self.slow_instance_head(segmentation_feats)
+                instance_embedding = torch.cat([fast_instance_embedding, slow_instance_embedding], dim=-1)
+                semantic_embedding = self.semantic_head(instance_embedding)
+                # semantic_embedding = F.softmax(semantic_embedding, dim=-1)
+                fast_instance_embedding = F.softmax(fast_instance_embedding, dim=-1)
+                slow_instance_embedding = F.softmax(slow_instance_embedding, dim=-1)
+                instance_embedding = torch.cat([fast_instance_embedding, slow_instance_embedding], dim=-1)
+            
+            if self.dynamic_xyz_encoder is not None and has_timestamps:
+                if self.split_semantic_instance:
+                    dynamic_semantic_embedding = self.semantic_head(dynamic_semantic_feats)
+                    # dynamic_semantic_embedding = F.softmax(dynamic_semantic_embedding, dim=-1)
+                    dynamic_fast_instance_embedding = self.fast_instance_head(dynamic_instance_feats)
+                    dynamic_slow_instance_embedding = self.slow_instance_head(dynamic_instance_feats)
+                    dynamic_fast_instance_embedding = F.softmax(dynamic_fast_instance_embedding, dim=-1)
+                    dynamic_slow_instance_embedding = F.softmax(dynamic_slow_instance_embedding, dim=-1)
+                    dynamic_instance_embedding = torch.cat(
+                        [dynamic_fast_instance_embedding, dynamic_slow_instance_embedding], dim=-1
+                    )
+                else:
+                    dynamic_fast_instance_embedding = self.fast_instance_head(dynamic_segmentation_feats)
+                    dynamic_slow_instance_embedding = self.slow_instance_head(dynamic_segmentation_feats)
+                    dynamic_instance_embedding = torch.cat(
+                        [dynamic_fast_instance_embedding, dynamic_slow_instance_embedding], dim=-1
+                    )
+                    dynamic_semantic_embedding = self.semantic_head(dynamic_instance_embedding)
+                    # dynamic_semantic_embedding = F.softmax(dynamic_semantic_embedding, dim=-1)
+                    dynamic_fast_instance_embedding = F.softmax(dynamic_fast_instance_embedding, dim=-1)
+                    dynamic_slow_instance_embedding = F.softmax(dynamic_slow_instance_embedding, dim=-1)
+                    dynamic_instance_embedding = torch.cat(
+                        [dynamic_fast_instance_embedding, dynamic_slow_instance_embedding], dim=-1
+                    )
+                
+                results_dict["static_semantic_embedding"] = semantic_embedding
+                results_dict["static_instance_embedding"] = instance_embedding
+                results_dict["dynamic_semantic_embedding"] = dynamic_semantic_embedding
+                results_dict["dynamic_instance_embedding"] = dynamic_instance_embedding
+                if combine_static_dynamic:
+                    static_ratio = static_density / (density + 1e-6)
+                    dynamic_ratio = dynamic_density / (density + 1e-6)
+                    results_dict["semantic_embedding"] = (
+                        static_ratio[..., None] * semantic_embedding
+                        + dynamic_ratio[..., None] * dynamic_semantic_embedding
+                    )
+                    results_dict["instance_embedding"] = (
+                        static_ratio[..., None] * instance_embedding
+                        + dynamic_ratio[..., None] * dynamic_instance_embedding
+                    )
+            else:
+                results_dict["semantic_embedding"] = semantic_embedding
+                results_dict["instance_embedding"] = instance_embedding
+                
         # query sky if not in lidar mode
         if (
             self.enable_sky_head
@@ -504,7 +665,7 @@ class RadianceField(nn.Module):
             reduced_data_dict = {k: v[:, 0] for k, v in data_dict.items()}
             sky_results = self.query_sky(directions, data_dict=reduced_data_dict)
             results_dict.update(sky_results)
-
+        
         return results_dict
 
 
@@ -638,6 +799,16 @@ class RadianceField(nn.Module):
         rgb_sky = self.sky_head(dd).to(directions)
         rgb_sky = F.sigmoid(rgb_sky)
         results = {"rgb_sky": rgb_sky}
+
+        if self.enable_segmentation_head:
+            semantic_sky_embedding = self.semantic_sky_head(dd).to(directions)
+            instance_sky_embedding = self.instance_sky_head(dd).to(directions)
+            # results["semantic_sky_embedding"] = F.softmax(semantic_sky_embedding,
+            #                                               dim=-1)
+            results["semantic_sky_embedding"] = semantic_sky_embedding
+            results["instance_sky_embedding"] = F.softmax(instance_sky_embedding,
+                                                          dim=-1)
+        
         return results
 
     def query_flow(
@@ -830,6 +1001,14 @@ def build_radiance_field_from_cfg(cfg, verbose=True) -> RadianceField:
         geometry_feature_dim=cfg.neck.geometry_feature_dim,
         base_mlp_layer_width=cfg.neck.base_mlp_layer_width,
         head_mlp_layer_width=cfg.head.head_mlp_layer_width,
+        enable_segmentation_head=cfg.head.enable_segmentation_head,
+        split_semantic_instance=cfg.head.split_semantic_instance,
+        segmentation_feature_dim=cfg.head.segmentation_feature_dim,
+        semantic_hidden_dim=cfg.head.semantic_hidden_dim,
+        instance_hidden_dim=cfg.head.instance_hidden_dim,
+        semantic_embedding_dim=cfg.head.semantic_embedding_dim,
+        instance_embedding_dim=cfg.head.instance_embedding_dim,
+        momentum=cfg.head.momentum,
         enable_cam_embedding=cfg.head.enable_cam_embedding,
         enable_img_embedding=cfg.head.enable_img_embedding,
         appearance_embedding_dim=cfg.head.appearance_embedding_dim,
