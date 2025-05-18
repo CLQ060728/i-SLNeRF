@@ -31,8 +31,8 @@ logger = logging.getLogger()
 depth_visualizer = lambda frame, opacity: visualize_depth(
     frame,
     opacity,
-    lo=4.0,
-    hi=120,
+    lo=1,
+    hi=160,
     depth_curve_fn=lambda x: -np.log(x + 1e-6),
 )
 flow_visualizer = (

@@ -11,7 +11,7 @@ from nerfacc import accumulate_along_rays
 from torch import Tensor
 
 
-def normalize_depth(depth: Tensor, max_depth: float = 80.0):
+def normalize_depth(depth: Tensor, max_depth: float = 1000.0):
     return torch.clamp(depth / max_depth, 0.0, 1.0)
 
 
@@ -619,19 +619,10 @@ class VisionDepthLoss(Loss):
     Args:
         loss_type (Literal["l1", "l2", "smooth_l1"]): Type of loss to use.
         name (str): Name of the loss.
-        normalize (bool): Whether to normalize the loss.
-        depth_error_percentile (float): Percentile of depth values to use.
         coef (float): Coefficient to multiply the loss by.
-        upper_bound (float): truncation value for the depth values.
+        max_depth (float): truncation value for the depth values.
         reduction (str): Reduction method for the loss.
         check_nan (bool): Whether to check for NaN values in the loss.
-
-    Attributes:
-        loss_type (Literal["l1", "l2", "smooth_l1"]): Type of loss being used.
-        normalize (bool): Whether the loss is normalized.
-        name (str): Name of the loss.
-        upper_bound (float): Truncation value for the depth values.
-        depth_error_percentile (float): Percentile of depth values being used.
     """
 
     def __init__(
@@ -644,11 +635,13 @@ class VisionDepthLoss(Loss):
         name: str = "vision_depth_loss",
         coef: float = 1.0,
         reduction="mean",
+        max_depth: float = 1000,
         check_nan=False
     ):
         super(VisionDepthLoss, self).__init__(coef, check_nan, reduction)
         self.loss_type = loss_type
         self.name = f"{name}_{self.loss_type}"
+        self.max_depth = max_depth
 
     def _compute_depth_loss(
         self,
@@ -657,6 +650,10 @@ class VisionDepthLoss(Loss):
     ):
         pred_depth = pred_depth.squeeze()
         gt_depth = gt_depth.squeeze()
+        valid_mask = (gt_depth > 0.0) & (gt_depth <= self.max_depth)
+        pred_depth = normalize_depth(pred_depth[valid_mask], max_depth=self.max_depth)
+        gt_depth = normalize_depth(gt_depth[valid_mask], max_depth=self.max_depth)
+
         if self.loss_type == "smooth_l1":
             return F.smooth_l1_loss(pred_depth, gt_depth, reduction="none")
         elif self.loss_type == "l1":

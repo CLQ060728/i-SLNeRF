@@ -732,8 +732,11 @@ class WaymoDataset(SceneDataset):
             if "depth_maps" in data_dict:
                 all_depth_maps = np.array([])
                 # convert depth maps for visualisation
-                cmap = matplotlib.colormaps.get_cmap('turbo') # 'Spectral_r'
+                cmap = matplotlib.colormaps.get_cmap('Spectral_r') # 'Spectral_r'
                 for depth_map in data_dict["depth_maps"].cpu().numpy():
+                    depth_map = depth_map - depth_map.min() / (
+                        depth_map.max() - depth_map.min() + 1e-6
+                    )
                     depth_map = depth_map * 255.0
                     depth_map = (cmap(depth_map)[:, :, :3] * 255.0)[:, :, ::-1]
                     all_depth_maps = np.concatenate((all_depth_maps, depth_map), axis=0)

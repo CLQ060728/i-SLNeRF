@@ -490,7 +490,8 @@ def build_static_losses(cfg):
     elif not cfg.data.lidar_source.load_lidar and cfg.data.pixel_source.load_depth_map:
         depth_loss_fn = loss.VisionDepthLoss(
             loss_type=cfg.supervision.vision_depth.loss_type,
-            coef=cfg.supervision.vision_depth.loss_coef
+            coef=cfg.supervision.vision_depth.loss_coef,
+            max_depth=cfg.supervision.vision_depth.max_depth
         )
         line_of_sight_loss_fn = None
     else:
@@ -627,10 +628,10 @@ def compute_pixel_losses(cfg, step, dataset, model, proposal_estimator, proposal
             )
         # cyclic flow loss
         if "forward_flow" in render_results["extras"]:
-            render_results["extras"]["forward_flow"].nan_to_num_(nan=1e-6, posinf=1.0, neginf=1.0)
-            render_results["extras"]["backward_flow"].nan_to_num_(nan=1e-6, posinf=1.0, neginf=1.0)
-            render_results["extras"]["forward_pred_backward_flow"].nan_to_num_(nan=1e-6, posinf=1.0, neginf=1.0)
-            render_results["extras"]["backward_pred_forward_flow"].nan_to_num_(nan=1e-6, posinf=1.0, neginf=1.0)
+            render_results["extras"]["forward_flow"].nan_to_num_(nan=0.0, posinf=1.0, neginf=1.0)
+            render_results["extras"]["backward_flow"].nan_to_num_(nan=0.0, posinf=1.0, neginf=1.0)
+            render_results["extras"]["forward_pred_backward_flow"].nan_to_num_(nan=0.0, posinf=1.0, neginf=1.0)
+            render_results["extras"]["backward_pred_forward_flow"].nan_to_num_(nan=0.0, posinf=1.0, neginf=1.0)
             cycle_loss = (
                 0.5
                 * (

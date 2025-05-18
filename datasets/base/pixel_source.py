@@ -260,7 +260,8 @@ class ScenePixelSource(abc.ABC):
                                    (self.data_cfg.load_size[1], self.data_cfg.load_size[0]),
                                    interpolation=cv2.INTER_NEAREST)
             # normalize the depth maps to [0, 1]
-            depth_map = (depth_map - depth_map.min()) / (depth_map.max() - depth_map.min())
+            # depth_map = np.clip(depth_map / 1000.0, 0.0, 1.0)  # clip the depth map to [0, 1000]
+            # depth_map = (depth_map - depth_map.min()) / (depth_map.max() - depth_map.min())
             depth_maps.append(depth_map)
         self.depth_maps = torch.from_numpy(np.stack(depth_maps, axis=0)).float()
         logger.info(f"self.depth maps size: {self.depth_maps.size()}")
@@ -467,7 +468,7 @@ class ScenePixelSource(abc.ABC):
         aabb_min[2] = max(aabb_min[2] - 5, -5)
         
         aabb = torch.tensor([*aabb_min, *aabb_max])
-        logger.info(f"[Pixel] Auto AABB from camera: {aabb}")
+        logger.info(f"[Pixel] Auto AABB from front camera: {aabb}")
         
         return aabb
 
