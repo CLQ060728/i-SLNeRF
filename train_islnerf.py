@@ -309,9 +309,7 @@ def do_evaluation(
             for k, v in render_results.items():
                 if k in [
                     "psnr",
-                    "ssim",
-                    "masked_psnr",
-                    "masked_ssim"
+                    "ssim"
                 ]:
                     eval_dict[f"pixel_metrics/test/{k}"] = v
             if args.enable_wandb:
