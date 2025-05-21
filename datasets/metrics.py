@@ -12,7 +12,7 @@ from tqdm import tqdm
 from radiance_fields import RadianceField
 
 
-def compute_valid_depth_rmse(prediction: Tensor, target: Tensor) -> float:
+def compute_valid_depth_rmse(prediction: Tensor, target: Tensor, max_depth: float) -> float:
     """
     Computes the root mean squared error (RMSE) between the predicted and target depth values,
     only considering the valid rays (where target > 0).
@@ -25,7 +25,8 @@ def compute_valid_depth_rmse(prediction: Tensor, target: Tensor) -> float:
     - float: RMSE between the predicted and target depth values, only considering the valid rays
     """
     prediction, target = prediction.squeeze(), target.squeeze()
-    valid_mask = target > 0
+    # valid_mask = target > 0
+    valid_mask = (target > 0.0) & (target <= max_depth)
     prediction = prediction[valid_mask]
     target = target[valid_mask]
     return F.mse_loss(prediction, target).sqrt().item()

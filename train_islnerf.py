@@ -309,7 +309,8 @@ def do_evaluation(
             for k, v in render_results.items():
                 if k in [
                     "psnr",
-                    "ssim"
+                    "ssim",
+                    "depth_rmse"
                 ]:
                     eval_dict[f"pixel_metrics/test/{k}"] = v
             if args.enable_wandb:
@@ -357,8 +358,7 @@ def do_evaluation(
                 if k in [
                     "psnr",
                     "ssim",
-                    "masked_psnr",
-                    "masked_ssim"
+                    "depth_rmse"
                 ]:
                     eval_dict[f"pixel_metrics/full/{k}"] = v
             if args.enable_wandb:
@@ -998,12 +998,7 @@ def visualize_during_training(step, cfg, model, proposal_networks, proposal_esti
                     {
                         "pixel_metrics/psnr": render_results["psnr"],
                         "pixel_metrics/ssim": render_results["ssim"],
-                        "pixel_metrics/feat_psnr": render_results["feat_psnr"],
-                        "pixel_metrics/masked_psnr": render_results["masked_psnr"],
-                        "pixel_metrics/masked_ssim": render_results["masked_ssim"],
-                        "pixel_metrics/masked_feat_psnr": render_results[
-                            "masked_feat_psnr"
-                        ],
+                        "pixel_metrics/depth_rmse": render_results["depth_rmse"]
                     }
                 )
             vis_frame_dict = save_videos(

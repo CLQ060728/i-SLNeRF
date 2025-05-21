@@ -14,7 +14,7 @@ from torch import Tensor
 from tqdm import tqdm, trange
 
 from datasets.base import SplitWrapper
-from datasets.metrics import compute_psnr
+from datasets.metrics import compute_psnr, compute_valid_depth_rmse
 from radiance_fields.radiance_field import DensityField, RadianceField
 from radiance_fields.render_utils import render_rays
 from third_party.nerfacc_prop_net import PropNetEstimator
@@ -138,6 +138,7 @@ def render(
     if compute_metrics:
         psnrs, ssim_scores = [], []
         masked_psnrs, masked_ssims = [], []
+        depth_rmses = []
 
     with torch.no_grad():
         indices = vis_indices if vis_indices is not None else range(len(dataset))
@@ -202,6 +203,13 @@ def render(
                         channel_axis=-1,
                     )
                 )
+                depth_rmses.append(
+                    compute_valid_depth_rmse(
+                        depth,
+                        data_dict["depth_maps"],
+                        max_depth=160.0
+                    )
+                )
                 if "dynamic_masks" in data_dict:
                     dynamic_mask = get_numpy(data_dict["dynamic_masks"]).astype(bool)
                     if dynamic_mask.sum() > 0:
@@ -229,6 +237,7 @@ def render(
     results_dict["rgbs"] = rgbs
     results_dict["static_rgbs"] = static_rgbs
     results_dict["dynamic_rgbs"] = dynamic_rgbs
+    results_dict["depth_rmse"] = non_zero_mean(depth_rmses) if compute_metrics else -1
     results_dict["depths"] = depths
     results_dict["opacities"] = opacities
     results_dict["static_depths"] = static_depths
@@ -249,6 +258,7 @@ def render(
         results_dict["backward_flows"] = backward_flows
     if len(median_depths) > 0:
         results_dict["median_depths"] = median_depths
+    
     return results_dict
 
 
