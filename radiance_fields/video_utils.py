@@ -96,6 +96,7 @@ def render_pixels(
         logger.info(f"Eval over {num_samples} images:")
         logger.info(f"\tPSNR: {render_results['psnr']:.4f}")
         logger.info(f"\tSSIM: {render_results['ssim']:.4f}")
+        logger.info(f"\tDepth RMSE: {render_results['depth_rmse']:.4f}")
         # logger.info(f"\tMasked PSNR: {render_results['masked_psnr']:.4f}")
         # logger.info(f"\tMasked SSIM: {render_results['masked_ssim']:.4f}")
 
