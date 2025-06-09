@@ -42,6 +42,9 @@ def decontract_inner(normed_positions: Tensor, aabb:Tensor, inner_range:Tensor, 
     positions = torch.where(normed_positions <= contract_ratio, normed_positions / contract_ratio, 
                             (1 - contract_ratio) * inner_range / (1 - normed_positions)
                            )
+    
+    positions.nan_to_num_(nan=0.0, posinf=1.0, neginf=1.0)
+
     positions = positions * (aabb_max - aabb_min) + aabb_min  # recover to world coordinates
     
     return positions
