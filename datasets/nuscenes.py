@@ -187,6 +187,7 @@ class NuScenesPixelSource(ScenePixelSource):
         logger.info(f"[Pixel] End timestep: {self.end_timestep}")
 
         img_filepaths, sky_mask_filepaths, depth_map_filepaths = [], [], []
+        seg_mask_filepaths = []
         # TODO: support dynamic masks
 
         for t in range(self.start_timestep, self.end_timestep):
@@ -203,9 +204,13 @@ class NuScenesPixelSource(ScenePixelSource):
                 depth_map_filepaths.append(os.path.join(
                     self.data_path, "vision_depth", f"{t:03d}_{cam_idx}.npy"
                 ))
+                seg_mask_filepaths.append(os.path.join(
+                    self.data_path, "seg_masks", f"{t:03d}_{cam_idx}.pt")
+                )
         self.img_filepaths = np.array(img_filepaths)
         self.sky_mask_filepaths = np.array(sky_mask_filepaths)
         self.depth_map_filepaths = np.array(depth_map_filepaths)
+        self.seg_mask_filepaths = np.array(seg_mask_filepaths)
 
     def load_calibrations(self):
         # compute per-image poses and intrinsics

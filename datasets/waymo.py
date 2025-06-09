@@ -65,6 +65,7 @@ class WaymoPixelSource(ScenePixelSource):
         img_filepaths = []
         sky_mask_filepaths = []
         depth_map_filepaths = []
+        seg_mask_filepaths = []
 
         # Note: we assume all the files in waymo dataset are synchronized
         for t in range(self.start_timestep, self.end_timestep):
@@ -79,10 +80,14 @@ class WaymoPixelSource(ScenePixelSource):
                 depth_map_filepaths.append(
                     os.path.join(self.data_path, "vision_depth", f"{t:03d}_{cam_idx}.npy")
                 )
+                seg_mask_filepaths.append(
+                    os.path.join(self.data_path, "seg_masks", f"{t:03d}_{cam_idx}.pt")
+                )
         
         self.img_filepaths = np.array(img_filepaths)
         self.sky_mask_filepaths = np.array(sky_mask_filepaths)
         self.depth_map_filepaths = np.array(depth_map_filepaths)
+        self.seg_mask_filepaths = np.array(seg_mask_filepaths)
 
 
     def load_calibrations(self):
@@ -464,6 +469,7 @@ class WaymoDataset(SceneDataset):
             self.data_cfg.pixel_source.load_rgb
             or self.data_cfg.pixel_source.load_sky_mask
             or self.data_cfg.pixel_source.load_depth_map
+            or self.data_cfg.pixel_source.load_segmentation
         )
         if load_pixel:
             pixel_source = WaymoPixelSource(

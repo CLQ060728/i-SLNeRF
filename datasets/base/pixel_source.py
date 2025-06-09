@@ -115,7 +115,6 @@ class ScenePixelSource(abc.ABC):
     # the vision depth maps of all images, shape: (num_imgs, load_size[0], load_size[1])
     depth_maps: Tensor = None
     # the segmentation masks of all images, shape: (num_imgs, load_size[0], load_size[1], total_features)
-    seg_masks: Tensor = None
     semantic_masks: Tensor = None
     instance_masks: Tensor = None
     instance_confidences: Tensor = None
