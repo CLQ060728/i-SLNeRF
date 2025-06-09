@@ -17,30 +17,32 @@ def contract_inner(positions: Tensor, aabb:Tensor, inner_range:Tensor, contract_
     """
     Contract the input positions to the inner range normalised ones using piecewise projective function.
     """
-    # similar to the one in DistillNeRF paper, aabb is at [0, 1]
+    # adapt the one in DistillNeRF paper, aabb is at [0, 1]
     inner_range = inner_range.to(positions.device)
     aabb_min, aabb_max = torch.split(aabb, 3, dim=-1)
     positions = (positions - aabb_min) / (aabb_max - aabb_min)
     inner_range = (inner_range - aabb_min) / (aabb_max - aabb_min)
     normed_positions = torch.where(positions <= inner_range, positions * contract_ratio,
-                                   (1 - (1 / torch.abs(positions)) * (1 - contract_ratio))
-                                    * positions / torch.abs(positions))
+                                   (1 - (inner_range / positions) * (1 - contract_ratio))
+                                  )
     
     normed_positions.nan_to_num_(nan=0.0, posinf=1.0, neginf=1.0)
     
     return normed_positions
 
 
-def decontract_inner(normed_positions: Tensor, inner_range:Tensor, contract_ratio:float) -> Tensor:
+def decontract_inner(normed_positions: Tensor, aabb:Tensor, inner_range:Tensor, contract_ratio:float) -> Tensor:
     """
     Decontract the normed inner range positions using piecewise projective function.
     """
-    # similar to the one in DistillNeRF paper, recover to world coordinates
+    # adapt the one in DistillNeRF paper, recover to world coordinates
     inner_range = inner_range.to(normed_positions.device)
-    positions = torch.where(torch.abs(normed_positions) <= contract_ratio, normed_positions * inner_range / contract_ratio, 
-                    inner_range * (1 - contract_ratio) / (1 - torch.abs(normed_positions))
-                    * normed_positions / torch.abs(normed_positions))
-
+    aabb_min, aabb_max = torch.split(aabb, 3, dim=-1)
+    inner_range = (inner_range - aabb_min) / (aabb_max - aabb_min)
+    positions = torch.where(normed_positions <= contract_ratio, normed_positions / contract_ratio, 
+                            (1 - contract_ratio) * inner_range / (1 - normed_positions)
+                           )
+    positions = positions * (aabb_max - aabb_min) + aabb_min  # recover to world coordinates
     
     return positions
 
