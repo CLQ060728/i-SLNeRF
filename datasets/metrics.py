@@ -12,6 +12,10 @@ from tqdm import tqdm
 from radiance_fields import RadianceField
 
 
+def normalize_depth(depth: Tensor, max_depth: float = 1000.0):
+    return torch.clamp(depth / max_depth, 0.0, 1.0)
+
+
 def compute_valid_depth_rmse(prediction: Tensor, target: Tensor, max_depth: float) -> float:
     """
     Computes the root mean squared error (RMSE) between the predicted and target depth values,
@@ -27,8 +31,10 @@ def compute_valid_depth_rmse(prediction: Tensor, target: Tensor, max_depth: floa
     prediction, target = prediction.squeeze(), target.squeeze()
     # valid_mask = target > 0
     valid_mask = (target > 0.0) & (target <= max_depth)
-    prediction = prediction[valid_mask]
-    target = target[valid_mask]
+    prediction = normalize_depth(prediction[valid_mask], max_depth=max_depth)
+    target = normalize_depth(target[valid_mask], max_depth=max_depth)
+    # prediction = prediction[valid_mask]
+    # target = target[valid_mask]
     return F.mse_loss(prediction, target).sqrt().item()
 
 
