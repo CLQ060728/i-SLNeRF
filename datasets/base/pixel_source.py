@@ -277,12 +277,13 @@ class ScenePixelSource(abc.ABC):
         for fname in tqdm(
             self.seg_mask_filepaths, desc="Loading segmentation masks", dynamic_ncols=True
         ):
-            seg_mask = np.load(fname)
-            
+            # seg_mask = np.load(fname)
+            seg_mask = torch.load(fname)
+
             # resize them to the load_size
-            semantic_mask = seg_mask[..., 0]
-            instance_mask = seg_mask[..., 1]
-            instance_confidence = seg_mask[..., 2]
+            semantic_mask = seg_mask[..., 0].numpy()
+            instance_mask = seg_mask[..., 1].numpy()
+            instance_confidence = seg_mask[..., 2].numpy()
             
             semantic_mask = semantic_mask.squeeze()
             instance_mask = instance_mask.squeeze()
