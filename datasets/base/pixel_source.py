@@ -278,6 +278,7 @@ class ScenePixelSource(abc.ABC):
             self.seg_mask_filepaths, desc="Loading segmentation masks", dynamic_ncols=True
         ):
             # seg_mask = np.load(fname)
+            # seg_mask = torch.load(fname, map_location=torch.device('cpu'))
             seg_mask = torch.load(fname)
 
             # resize them to the load_size

@@ -204,13 +204,14 @@ def render(
                         channel_axis=-1,
                     )
                 )
-                depth_rmses.append(
-                    compute_valid_depth_rmse(
-                        depth,
-                        data_dict["depth_maps"],
-                        max_depth=160.0
+                if "depth_maps" in data_dict:
+                    depth_rmses.append(
+                        compute_valid_depth_rmse(
+                            depth,
+                            data_dict["depth_maps"],
+                            max_depth=160.0
+                        )
                     )
-                )
                 if "dynamic_masks" in data_dict:
                     dynamic_mask = get_numpy(data_dict["dynamic_masks"]).astype(bool)
                     if dynamic_mask.sum() > 0:

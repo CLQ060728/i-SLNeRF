@@ -595,7 +595,7 @@ class RadianceField(nn.Module):
             if self.split_semantic_instance:
                 # split semantic and instance branches
                 semantic_embedding = self.semantic_head(semantic_feats)
-                # semantic_embedding = F.softmax(semantic_embedding, dim=-1)
+                semantic_embedding = F.log_softmax(semantic_embedding, dim=-1)
                 fast_instance_embedding = self.fast_instance_head(instance_feats)
                 slow_instance_embedding = self.slow_instance_head(instance_feats)
                 fast_instance_embedding = F.softmax(fast_instance_embedding, dim=-1)
@@ -607,7 +607,7 @@ class RadianceField(nn.Module):
                 slow_instance_embedding = self.slow_instance_head(segmentation_feats)
                 instance_embedding = torch.cat([fast_instance_embedding, slow_instance_embedding], dim=-1)
                 semantic_embedding = self.semantic_head(instance_embedding)
-                # semantic_embedding = F.softmax(semantic_embedding, dim=-1)
+                semantic_embedding = F.log_softmax(semantic_embedding, dim=-1)
                 fast_instance_embedding = F.softmax(fast_instance_embedding, dim=-1)
                 slow_instance_embedding = F.softmax(slow_instance_embedding, dim=-1)
                 instance_embedding = torch.cat([fast_instance_embedding, slow_instance_embedding], dim=-1)
@@ -615,7 +615,7 @@ class RadianceField(nn.Module):
             if self.dynamic_xyz_encoder is not None and has_timestamps:
                 if self.split_semantic_instance:
                     dynamic_semantic_embedding = self.semantic_head(dynamic_semantic_feats)
-                    # dynamic_semantic_embedding = F.softmax(dynamic_semantic_embedding, dim=-1)
+                    dynamic_semantic_embedding = F.log_softmax(dynamic_semantic_embedding, dim=-1)
                     dynamic_fast_instance_embedding = self.fast_instance_head(dynamic_instance_feats)
                     dynamic_slow_instance_embedding = self.slow_instance_head(dynamic_instance_feats)
                     dynamic_fast_instance_embedding = F.softmax(dynamic_fast_instance_embedding, dim=-1)
@@ -630,7 +630,7 @@ class RadianceField(nn.Module):
                         [dynamic_fast_instance_embedding, dynamic_slow_instance_embedding], dim=-1
                     )
                     dynamic_semantic_embedding = self.semantic_head(dynamic_instance_embedding)
-                    # dynamic_semantic_embedding = F.softmax(dynamic_semantic_embedding, dim=-1)
+                    dynamic_semantic_embedding = F.log_softmax(dynamic_semantic_embedding, dim=-1)
                     dynamic_fast_instance_embedding = F.softmax(dynamic_fast_instance_embedding, dim=-1)
                     dynamic_slow_instance_embedding = F.softmax(dynamic_slow_instance_embedding, dim=-1)
                     dynamic_instance_embedding = torch.cat(
