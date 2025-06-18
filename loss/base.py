@@ -602,7 +602,7 @@ class Semantic_Classification_Loss(Loss):
         Returns:
             dict: A dictionary containing the loss value.
         """
-        loss = self.loss_fn(predicted.view(0,3,1,2), gt, reduction="none")
+        loss = self.loss_fn(predicted, gt, reduction="none")
 
         if mask is not None:
             loss = loss * mask.squeeze()
