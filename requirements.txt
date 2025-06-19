@@ -28,6 +28,7 @@ gdown
 Pillow==9.2.0
 opencv-python==4.11.0.86
 pandas==1.5.3
+open_clip_torch==2.32.0
 
 # Waymo Open Dataset dependencies
 waymo-open-dataset-tf-2-11-0==1.6.0
