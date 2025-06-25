@@ -32,7 +32,7 @@ vedo
 ninja
 tqdm
 gdown
-Pillow==9.2.0
+pillow==11.2.1
 opencv-python==4.11.0.86
 pandas==1.5.3
 open_clip_torch==2.32.0
