@@ -178,8 +178,8 @@ class ScenePixelSource(abc.ABC):
             self.sky_masks = self.sky_masks.to(device)
         if self.depth_maps is not None:
             self.depth_maps = self.depth_maps.to(device)
-        if self.semantic_masks is not None:
-            self.semantic_masks = self.semantic_masks.to(device)
+        # if self.semantic_masks is not None:
+            # self.semantic_masks = self.semantic_masks.to(device)
         if self.instance_masks is not None:
             self.instance_masks = self.instance_masks.to(device)
         if self.instance_confidences is not None:
@@ -302,9 +302,9 @@ class ScenePixelSource(abc.ABC):
             semantic_masks.append(np.array(semantic_mask))
             instance_masks.append(np.array(instance_mask))
             instance_confidences.append(np.array(instance_confidence))
-        self.semantic_masks = torch.from_numpy(np.stack(semantic_masks, axis=0)).float()
-        self.instance_masks = torch.from_numpy(np.stack(instance_masks, axis=0)).float()
-        self.instance_confidences = torch.from_numpy(np.stack(instance_confidences, axis=0)).float()
+        self.semantic_masks = torch.from_numpy(np.stack(semantic_masks, axis=0)).half()
+        self.instance_masks = torch.from_numpy(np.stack(instance_masks, axis=0)).half()
+        self.instance_confidences = torch.from_numpy(np.stack(instance_confidences, axis=0)).half()
         
         logger.info(f"self.semantic_masks size: {self.semantic_masks.size()}")
         logger.info(f"self.instance_masks size: {self.instance_masks.size()}")
@@ -713,9 +713,9 @@ class ScenePixelSource(abc.ABC):
         if self.depth_maps is not None:
             depth_map = self.depth_maps[img_idx, y, x]
             print(f"depth_map: {depth_map.size()}\n")
-        if self.semantic_masks is not None:
-            semantic_mask = self.semantic_masks[img_idx, y, x]
-            print(f"semantic_mask: {semantic_mask.size()}\n")
+        # if self.semantic_masks is not None:
+        #     semantic_mask = self.semantic_masks[img_idx, y, x]
+        #     print(f"semantic_mask: {semantic_mask.size()}\n")
         if self.instance_masks is not None:
             instance_mask = self.instance_masks[img_idx, y, x]
             print(f"instance_mask: {instance_mask.size()}\n")

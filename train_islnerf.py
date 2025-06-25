@@ -806,17 +806,17 @@ def compute_segmentation_loss(cfg, step, dataset, model, proposal_estimator, pro
         total_instance_loss = 0
 
         # compute semantic losses
-        semantic_loss_dict.update(semantic_classfication_loss_fn(
-            segmentation_render_results["semantic_embedding"],
-            seg_pixel_data_dict["semantic_masks"]
-            )
-        )
+        # semantic_loss_dict.update(semantic_classfication_loss_fn(
+        #     segmentation_render_results["semantic_embedding"],
+        #     seg_pixel_data_dict["semantic_masks"]
+        #     )
+        # )
         
-        total_semantic_loss = sum(loss for loss in semantic_loss_dict.values())
-        optimizer.zero_grad()
-        semantic_grad_scaler.scale(total_semantic_loss).backward()
-        optimizer.step()
-        scheduler.step()
+        # total_semantic_loss = sum(loss for loss in semantic_loss_dict.values())
+        # optimizer.zero_grad()
+        # semantic_grad_scaler.scale(total_semantic_loss).backward()
+        # optimizer.step()
+        # scheduler.step()
         
         # compute instance consistency loss
         if step >= cfg.supervision.segmentation.instance.start_iter:
