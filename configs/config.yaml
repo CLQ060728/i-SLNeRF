@@ -1,5 +1,5 @@
 data:
-  data_root: [.../data/...] # absolute path to the dataset
+  data_root: /root/WORKSPACE/i-SLNeRF/ # absolute path to the dataset
   aabb_type: specified # different types of aabbs, choose from ["front", "specified"]
   aabb: [-160.0, -160.0, -20.0, 160.0, 160.0, 60.0] # [-80.0, -80.0, -5.0, 80.0, 80.0, 7.8] size: [0.1m, 0.1m, 0.2m] and size: [0.4m, 0.4m, 0.4m]
                                               # [-40.0, -40.0, -1.0, 40.0, 40.0, 5.4] for Waymo
