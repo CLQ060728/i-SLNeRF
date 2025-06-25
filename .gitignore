@@ -4,5 +4,4 @@ data/
 logs/
 output/
 configs/
-configs/*.yaml
 sam2/
