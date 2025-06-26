@@ -4,7 +4,7 @@ setuptools==67.6.0
 torch==2.1.0
 # numpy==1.26.4
 # scipy==1.15.3
-scikit-learn==1.7.0
+# scikit-learn==1.7.0
 # seaborn==0.13.2
 # torch==2.5.1
 torchvision==0.16.0
