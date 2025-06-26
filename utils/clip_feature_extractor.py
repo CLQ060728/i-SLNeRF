@@ -11,6 +11,87 @@ from tqdm import tqdm
 import torch.nn.functional as F
 
 
+prompt_templates = ["a photo of {}", "a picture of {}", "a rendering of {}", "an image of {}",
+                    "a scene of {}", "an outdoor scene of {}", "a photo of {} scene",
+                    "an image of {} scene", "a picture of {} scene", "a rendering of {} scene"]
+
+# adopted in our i-SLNeRF paper
+def get_clip_text_features(scene_classes, device='cuda:0'):
+    """
+    Get CLIP text features for a list of scene classes.
+    :param scene_classes: List of scene class names.
+    :param device: GPU device to use for computation.
+    :return: Normalized CLIP text features.
+    """
+    # device = torch.device(f"cuda:{gpu_id}" if torch.cuda.is_available() else "cpu")
+
+    model, _, _ = open_clip.create_model_and_transforms(
+        model_name="ViT-B-16",
+        pretrained="dfn2b",
+        device=device
+    )
+    model = model.to(device)
+    model.eval()
+
+    tokenizer = open_clip.get_tokenizer("ViT-B-16")
+
+    with torch.no_grad():
+        zeroshot_weights = []
+        for scene_class in scene_classes:
+            texts = [template.format(scene_class) for template in prompt_templates] # format with class
+            texts = tokenizer(texts).to(device)                         # tokenize
+            class_embeddings = model.encode_text(texts).float()    # embed with text encoder
+            class_embeddings /= class_embeddings.norm(dim=-1, keepdim=True)
+            class_embedding = class_embeddings.mean(dim=0)              # average multi templates
+            class_embedding /= class_embedding.norm()
+            zeroshot_weights.append(class_embedding)
+        
+        zeroshot_weights = torch.stack(zeroshot_weights, dim=0).to(device)
+    print(f"Text features extracted with shape {zeroshot_weights.size()}!")
+    
+    del model
+    torch.cuda.empty_cache()
+    
+    zeroshot_weights = zeroshot_weights.detach().cpu()  # Move to CPU for saving
+
+    return zeroshot_weights
+
+
+def get_clip_visual_features(images, device='cuda:0'):
+    """
+    Get CLIP visual features for given images.
+    :param image: The input images.
+    :param device: GPU device to use for computation.
+    :return: Normalized CLIP visual features.
+    """
+    model, _, preprocess = open_clip.create_model_and_transforms(
+        model_name="ViT-B-16",
+        pretrained="dfn2b",
+        force_quick_gelu=True,
+        device=device
+    )
+    model = model.to(device)
+    model.eval()
+
+    # image = Image.open(image_path) (H, W, C) # .convert("RGB")
+    # preprocess(image).unsqueeze(0).to(device)
+    images = [preprocess(image) for image in images]  # Preprocess and add batch dimension
+    images = torch.stack(images, dim=0).to(device)  # Stack images into a batch
+
+    with torch.no_grad():
+        image_features = model.encode_image(images).float()  # Get image features
+        image_features /= image_features.norm(dim=-1, keepdim=True)
+
+    print(f"Visual features extracted with shape {image_features.size()}!")
+
+    del model
+    torch.cuda.empty_cache()
+
+    image_features = image_features.detach().cpu()  # Move to CPU for saving
+
+    return image_features
+
+
 def extract_clip_text_features(args, scene_classes):
     device = torch.device(f"cuda:{args.gpu_id}" if torch.cuda.is_available() else "cpu")
 
@@ -38,7 +119,7 @@ def extract_clip_text_features(args, scene_classes):
     # Save the text features
     torch.save(text_features, f'{save_path}/scene_classes.pt')
 
-
+# adopted in our i-SLNeRF paper
 def extract_clip_features(args):
     device = torch.device(f"cuda:{args.gpu_id}" if torch.cuda.is_available() else "cpu")
 
@@ -91,7 +172,7 @@ def extract_clip_features(args):
                 chunk_size = 8
                 for chunk_idx in range(len(patches)//chunk_size + int(len(patches)%chunk_size>0)):
                     patch_chunk = torch.stack(patches[chunk_idx*chunk_size : (chunk_idx+1)*chunk_size]).to(device)
-                    patch_chunk_feature = model.encode_image(patch_chunk)
+                    patch_chunk_feature = model.encode_image(patch_chunk).float()
                     for i in range(chunk_size):
                         patch_idx = chunk_idx*chunk_size + i
                         if patch_idx >= len(idxes): break
@@ -103,7 +184,7 @@ def extract_clip_features(args):
                 image_feature.append(sum_feature / count)
 
         image_feature = torch.cat(image_feature).detach().cpu() # [scale, D, height, width]
-        print(f"Extracted features for {image_path.name} with shape {image_feature.shape}")
+        print(f"Extracted features for {image_path.name} with shape {image_feature.size()}")
 
         # save the extracted feature
         save_path = args.save_path
