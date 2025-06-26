@@ -20,7 +20,7 @@ black==22.6.0
 # custom
 tensorboard==2.11.0
 wandb==0.15.8
-matplotlib = 3.6.1
+matplotlib==3.6.1
 plotly==5.13.1
 imageio
 imageio-ffmpeg
