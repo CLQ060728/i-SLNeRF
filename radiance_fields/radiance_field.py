@@ -1056,7 +1056,7 @@ def build_density_field(
     )
 
 
-def compute_SRMR(vis_feature, clip_text_features, sam2_masks):
+def compute_SRMR(vis_feature: Tensor, clip_text_features: Tensor, sam2_masks: Tensor) -> Tensor:
     """
     Compute the SRMR (Semantic Relevancy Map Regularization) for a given image feature and
     its related scene classes features.
@@ -1077,16 +1077,53 @@ def compute_SRMR(vis_feature, clip_text_features, sam2_masks):
     p_class = F.softmax(relevancy_map, dim=1) # [N1,N2]
     class_index = torch.argmax(p_class, dim=-1).cpu() # [N1]
     pred_index = class_index.reshape(H, W).unsqueeze(0) # [1,H,W]
-    
-    # Get SAM2 masks
-    # sam2_masks = get_sam2_masks(image, device=device)
 
     # Refine SAM2 masks using the predicted class_index  
     sam_refined_pred = torch.zeros((pred_index.shape[1], pred_index.shape[2]),
                                    dtype=torch.long).to(device)
 
     for ann in sam2_masks:
-        cur_mask = ann['segmentation']                   
+        cur_mask = ann.squeeze().bool()  # [H, W], current mask for the annotation                  
+        sub_mask = pred_index.squeeze().clone()
+        sub_mask[~cur_mask] = 0
+        # .view(-1) collapses all dimensions into a single dimension, It is equivalent to tensor.reshape(-1).
+        flat_sub_mask = sub_mask.clone().view(-1)           
+        flat_sub_mask = flat_sub_mask[flat_sub_mask!=0]
+        
+        if len(flat_sub_mask) != 0:                         
+            unique_elements, counts = torch.unique(flat_sub_mask, return_counts=True)  
+            most_common_element = unique_elements[int(counts.argmax().item())]  
+        else:                                               
+            continue 
+
+        sam_refined_pred[cur_mask] = most_common_element  
+    
+    return sam_refined_pred
+
+
+def compute_SRMR_from_relevancy_map(
+    relevancy_map: Tensor,
+    sam2_masks: Tensor
+) -> Tensor:
+    """
+    Compute the SRMR (Semantic Relevancy Map Regularization) from a given relevancy map and SAM2 masks.
+    :param relevancy_map: A tensor of shape [N1,N2] with the relevancy values for each pixel.
+    :param sam2_masks: SAM2 masks for the image.
+    :return: A tensor of shape (H, W) with the refined relevancy values for each pixel.
+    """
+    H, W = sam2_masks.size(1), sam2_masks.size(2)  # [height, width]
+    device = relevancy_map.device
+    
+    p_class = F.softmax(relevancy_map, dim=1) # [N1,N2]
+    class_index = torch.argmax(p_class, dim=-1).cpu() # [N1]
+    pred_index = class_index.reshape(H, W).unsqueeze(0) # [1,H,W]
+
+    # Refine SAM2 masks using the predicted class_index  
+    sam_refined_pred = torch.zeros((pred_index.shape[1], pred_index.shape[2]),
+                                   dtype=torch.long).to(device)
+
+    for ann in sam2_masks:
+        cur_mask = ann.squeeze().bool()  # [H, W], current mask for the annotation                  
         sub_mask = pred_index.squeeze().clone()
         sub_mask[~cur_mask] = 0
         # .view(-1) collapses all dimensions into a single dimension, It is equivalent to tensor.reshape(-1).

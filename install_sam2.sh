@@ -3,6 +3,7 @@ rm -rf ./.git
 pip install -e .
 mkdir ./checkpoints/
 wget -P ./checkpoints/ https://dl.fbaipublicfiles.com/segment_anything_2/092824/sam2.1_hiera_large.pt
+cp ../sam2_feature_extractor.py ./
 pip install --upgrade numpy==1.26.4
 pip install --upgrade scipy==1.15.3
 pip install --upgrade pandas==2.3.0
