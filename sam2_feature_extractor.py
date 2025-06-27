@@ -43,7 +43,7 @@ def get_sam2_masks(image, device='cuda:0'):
 
     masks = mask_generator.generate(image)
     masks = [mask['segmentation'] for mask in masks]  # Extract only the segmentation masks
-    masks = torch.tensor(masks, dtype=torch.bool)  # Convert to tensor
+    masks = torch.tensor(masks)  # Convert to tensor
 
     del sam2
     del mask_generator
@@ -70,7 +70,8 @@ def get_sam2_masks_from_path(args):
         image_path = Path(image_path)
         image = np.array(Image.open(image_path).convert("RGB"))
         masks = get_sam2_masks(image, device=device)
-
+        
+        print(f"Extracted masks from {image_path.name}, shape: {masks.shape}, dtype: {masks.dtype}")
         save_file_path = os.path.join(save_path, f"{image_path.stem}.pt")
         torch.save(masks, save_file_path)
 

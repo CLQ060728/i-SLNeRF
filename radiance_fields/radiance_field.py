@@ -1083,7 +1083,7 @@ def compute_SRMR(vis_feature: Tensor, clip_text_features: Tensor, sam2_masks: Te
                                    dtype=torch.long).to(device)
 
     for ann in sam2_masks:
-        cur_mask = ann.squeeze().bool()  # [H, W], current mask for the annotation                  
+        cur_mask = ann.squeeze()  # [H, W], current mask for the annotation                  
         sub_mask = pred_index.squeeze().clone()
         sub_mask[~cur_mask] = 0
         # .view(-1) collapses all dimensions into a single dimension, It is equivalent to tensor.reshape(-1).
@@ -1123,7 +1123,7 @@ def compute_SRMR_from_relevancy_map(
                                    dtype=torch.long).to(device)
 
     for ann in sam2_masks:
-        cur_mask = ann.squeeze().bool()  # [H, W], current mask for the annotation                  
+        cur_mask = ann.squeeze()  # [H, W], current mask for the annotation                  
         sub_mask = pred_index.squeeze().clone()
         sub_mask[~cur_mask] = 0
         # .view(-1) collapses all dimensions into a single dimension, It is equivalent to tensor.reshape(-1).
