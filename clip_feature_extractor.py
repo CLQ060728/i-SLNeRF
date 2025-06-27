@@ -9,6 +9,7 @@ from pathlib import Path
 import random, glob, os
 from tqdm import tqdm
 import torch.nn.functional as F
+import json
 
 
 prompt_templates = ["a photo of {}", "a picture of {}", "a rendering of {}", "an image of {}",
@@ -16,24 +17,30 @@ prompt_templates = ["a photo of {}", "a picture of {}", "a rendering of {}", "an
                     "an image of {} scene", "a picture of {} scene", "a rendering of {} scene"]
 
 # adopted in our i-SLNeRF paper
-def get_clip_text_features(scene_classes, device='cuda:0'):
+def get_clip_text_features(args):
     """
     Get CLIP text features for a list of scene classes.
-    :param scene_classes: List of scene class names.
-    :param device: GPU device to use for computation.
+    :param args: Arguments containing GPU ID and model details.
     :return: Normalized CLIP text features.
     """
-    # device = torch.device(f"cuda:{gpu_id}" if torch.cuda.is_available() else "cpu")
+    device = torch.device(f"cuda:{args.gpu_id}" if torch.cuda.is_available() else "cpu")
 
     model, _, _ = open_clip.create_model_and_transforms(
-        model_name="ViT-B-16",
-        pretrained="dfn2b",
+        model_name=args.clip_model,
+        pretrained=args.pretrained,
         device=device
     )
     model = model.to(device)
     model.eval()
 
-    tokenizer = open_clip.get_tokenizer("ViT-B-16")
+    tokenizer = open_clip.get_tokenizer(args.clip_model)
+
+    scene_classes_path = os.path.join(args.input_path, "unique_labels_ordered.txt")
+    with open(scene_classes_path, 'r') as scene_classes_file:
+        scene_classes_dict = json.load(scene_classes_file)
+    print(f"Scene classes loaded: {len(scene_classes_dict)} classes")
+
+    scene_classes = list(scene_classes_dict.keys())
 
     with torch.no_grad():
         zeroshot_weights = []
@@ -54,7 +61,11 @@ def get_clip_text_features(scene_classes, device='cuda:0'):
     
     zeroshot_weights = zeroshot_weights.detach().cpu()  # Move to CPU for saving
 
-    return zeroshot_weights
+    # save the extracted feature
+    save_path = args.save_path
+    os.makedirs(save_path, exist_ok=True)
+    print(f"Saving text features to {save_path}/scene_classes_features.pt")
+    torch.save(zeroshot_weights, f'{save_path}/scene_classes_features.pt')
 
 
 def get_clip_visual_features(images, device='cuda:0'):
@@ -121,6 +132,11 @@ def extract_clip_text_features(args, scene_classes):
 
 # adopted in our i-SLNeRF paper
 def extract_clip_features(args):
+    """
+    Extract CLIP pixel features from images in the specified directory.
+    :param args: Arguments containing image path, model details, GPU ID, and save path.
+    """
+    # Set the device for computation
     device = torch.device(f"cuda:{args.gpu_id}" if torch.cuda.is_available() else "cpu")
 
     model, _, preprocess = open_clip.create_model_and_transforms(
@@ -135,12 +151,12 @@ def extract_clip_features(args):
 
     for image_path in tqdm(image_paths):
 
-        # down_sample = 8
+        down_sample = 4
         image_path = Path(image_path)
-        image = Image.open(image_path)
-        # image = image.resize((image.width//down_sample, image.height//down_sample))
+        image = Image.open(image_path).convert("RGB")  # Ensure the image is in RGB format
+        image = image.resize((image.width//down_sample, image.height//down_sample))
 
-        patch_sizes = [min(image.size)//5, min(image.size)//7, min(image.size)//10]
+        patch_sizes = [min(image.size)//5, min(image.size)//8, min(image.size)//10]
 
         image_feature = []
 
@@ -184,6 +200,7 @@ def extract_clip_features(args):
                 image_feature.append(sum_feature / count)
 
         image_feature = torch.cat(image_feature).detach().cpu() # [scale, D, height, width]
+        # image_feature = image_feature.half()  # Reduce the feature size by half for memory efficiency
         print(f"Extracted features for {image_path.name} with shape {image_feature.size()}")
 
         # save the extracted feature
@@ -195,11 +212,13 @@ def extract_clip_features(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Extract CLIP pixel features from images")
-    parser.add_argument("--images_path", type=str)
+    parser.add_argument("--input_path", type=str)
     parser.add_argument("--clip_model", type=str, default="ViT-B-16")
     parser.add_argument("--pretrained", type=str, default="dfn2b")
     parser.add_argument("--gpu_id", type=int, default=0)
     parser.add_argument("--save_path", type=str)
     args = parser.parse_args()
 
-    extract_clip_features(args)
+    # extract_clip_features(args)
+    get_clip_text_features(args)
+

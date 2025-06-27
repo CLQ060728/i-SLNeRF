@@ -5,6 +5,7 @@ import torch, numpy as np
 import torch.nn.functional as F
 from ..sam2.sam2.build_sam import build_sam2
 from ..sam2.sam2.automatic_mask_generator import SAM2AutomaticMaskGenerator
+import argparse
 
 
 def get_sam2_masks(image, device='cuda:0'):
@@ -43,4 +44,33 @@ def get_sam2_masks(image, device='cuda:0'):
     torch.cuda.empty_cache()
 
     return masks
-    
+
+
+def get_sam2_masks_from_path(args):
+    """
+    Get SAM2 masks for images in a specified directory.
+    :param args: Arguments containing input path and GPU ID.
+    :return: List of masks for each image.
+    """
+    device = torch.device(f"cuda:{args.gpu_id}" if torch.cuda.is_available() else "cpu")
+
+    image_paths = sorted(glob.glob(f"{args.input_path}/*.jpg"))
+    print(f"Found {len(image_paths)} images in {args.input_path}")
+
+    all_masks = []
+    for image_path in tqdm(image_paths, desc="Processing images"):
+        image = np.array(Image.open(image_path).convert("RGB"))
+        masks = get_sam2_masks(image, device=device)
+        all_masks.append(masks)
+
+    return all_masks
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Extract SAM2 masks from images")
+    parser.add_argument("--input_path", type=str, required=True, help="Path to input images directory")
+    parser.add_argument("--gpu_id", type=int, default=0, help="GPU ID to use for computation")
+    args = parser.parse_args()
+
+    masks = get_sam2_masks_from_path(args)
+    print(f"Extracted masks for {len(masks)} images.")
