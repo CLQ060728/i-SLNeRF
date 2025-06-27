@@ -210,6 +210,51 @@ def extract_clip_features(args):
         torch.save(image_feature, f'{save_path}/{image_path.stem}.pt')
 
 
+def save_clip_features_relevancy_map(clip_text_features, clip_vis_feature, save_name, args):
+    """
+    Save the relevancy map of CLIP features.
+    :param clip_text_features: CLIP text features for scene classes [N2, D].
+    :param clip_vis_feature: CLIP visual feature for an image [H, W, D].
+    :param save_name: Name of the file to save the relevancy map.
+    :param args: Arguments containing save path, gpu_id.
+    """
+    device = torch.device(f"cuda:{args.gpu_id}" if torch.cuda.is_available() else "cpu")
+    H, W = clip_vis_feature.size(0), clip_vis_features.size(1)  # Get height and width of the visual features
+
+    clip_vis_feature = clip_vis_feature.reshape(-1, clip_vis_feature.size(-1)).to(device) # [N1, D], N1 is H*W, D is the feature dimension
+    clip_text_features = clip_text_features.to(device)  # [N2, D], N2 is the number of scene classes
+    clip_text_features_normalized = F.normalize(clip_text_features, dim=1) # [N2, D], N2 is the number of scene classes
+    clip_vis_feature_normalized = F.normalize(clip_vis_feature, dim=1) # [N1, D], N1 is 1 or H*W, D is the feature dimension
+    # Compute cosine similarity
+    relevancy_map = torch.mm(clip_vis_feature_normalized, clip_text_features_normalized.T).half() # [N1,N2]
+
+    # Save the relevancy map
+    save_path = args.save_path
+    os.makedirs(save_path, exist_ok=True)
+    print(f"Saving relevancy map to {save_path}/{save_name}.pt")
+    torch.save(relevancy_map, f'{save_path}/{save_name}.pt')
+
+
+def save_all_relevancy_maps_from_path(args):
+    """
+    Save all relevancy maps from the specified path.
+    :param args: Arguments containing input path, save path, and GPU ID.
+    """
+    # Load CLIP text features
+    clip_text_features = torch.load(os.path.join(args.input_path, "scene_classes.pt"))
+
+    # Get all image feature files
+    image_feature_files = sorted(glob.glob(f"{args.input_path}/*.pt"))
+    print(f"Found {len(image_feature_files)} image feature files in {args.input_path}")
+
+    for image_feature_file in tqdm(image_feature_files, desc="Processing images"):
+        clip_image_feature = torch.load(image_feature_file, weights_only=True)  # Load the image feature
+        save_name = Path(image_feature_file).stem  # Use the file name without extension as save name
+        print(f"Processing {save_name} with shape {clip_image_feature.size()}")
+        # Save the relevancy map
+        save_clip_features_relevancy_map(clip_text_features, clip_image_feature, save_name, args)
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Extract CLIP pixel features from images")
     parser.add_argument("--input_path", type=str)
@@ -220,5 +265,6 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     # extract_clip_features(args)
-    get_clip_text_features(args)
+    # get_clip_text_features(args)
+    save_all_relevancy_maps_from_path(args)
 
