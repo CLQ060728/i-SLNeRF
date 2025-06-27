@@ -5,3 +5,4 @@ logs/
 output/
 configs/
 sam2/
+.yaml
