@@ -43,7 +43,7 @@ def get_sam2_masks(image, device='cuda:0'):
 
     masks = mask_generator.generate(image)
     masks = [mask['segmentation'] for mask in masks]  # Extract only the segmentation masks
-    masks = torch.tensor(masks, dtype=torch.uint8)  # Convert to tensor
+    masks = torch.tensor(masks, dtype=torch.bool)  # Convert to tensor
 
     del sam2
     del mask_generator
