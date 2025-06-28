@@ -51,7 +51,7 @@ def resize_five_views(imgs: np.array):
         return imgs
     for idx in [0, -1]:
         img = imgs[idx]
-        new_shape = [int(img.shape[1] * 0.56), img.shape[1], 3]
+        new_shape = [int(img.shape[1] * 0.9), img.shape[1], 3]
         new_img = np.zeros_like(img)
         new_img[-new_shape[0] :, : new_shape[1], :] = ndimage.zoom(
             img, [new_shape[0] / img.shape[0], new_shape[1] / img.shape[1], 1]
