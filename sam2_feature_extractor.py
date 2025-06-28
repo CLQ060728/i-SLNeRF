@@ -8,6 +8,7 @@ from sam2.automatic_mask_generator import SAM2AutomaticMaskGenerator
 import argparse
 from tqdm import tqdm
 from PIL import Image
+import cv2
 from pathlib import Path
 import glob, json, os
 
@@ -62,13 +63,17 @@ def get_sam2_masks_from_path(args):
 
     image_paths = sorted(glob.glob(f"{args.input_path}/*.jpg"))
     print(f"Found {len(image_paths)} images in {args.input_path}")
-    # save the extracted masks
+    # save the extracted masks  'sam2_masks'
     save_path = args.save_path
     os.makedirs(save_path, exist_ok=True)
 
     for image_path in tqdm(image_paths, desc="Processing images"):
         image_path = Path(image_path)
         image = np.array(Image.open(image_path).convert("RGB"))
+        print(f"Processing image: {image_path.name}, shape: {image.shape}")
+        image = cv2.resize(image, (image.shape[1] // args.downscale, image.shape[0] // args.downscale),
+                           interpolation=cv2.INTER_LINEAR)
+        print(f"Resized image: {image.shape}")
         masks = get_sam2_masks(image, device=device)
         
         print(f"Extracted masks from {image_path.name}, shape: {masks.shape}, dtype: {masks.dtype}")
@@ -120,7 +125,7 @@ def save_SRMR(clip_vis_feature: Tensor, clip_text_features: Tensor, sam2_masks: 
 
         sam_refined_pred[cur_mask] = most_common_element  
     
-    # save the extracted masks
+    # save the extracted masks 'srmr_masks'
     save_path = args.save_path
     os.makedirs(save_path, exist_ok=True)
     save_file_path = os.path.join(save_path, f"{save_name}.pt")
@@ -135,22 +140,34 @@ def save_all_SRMR_from_path(args):
     """
     device = torch.device(f"cuda:{args.gpu_id}" if torch.cuda.is_available() else "cpu")
 
-    image_paths = sorted(glob.glob(f"{args.input_path}/*.jpg"))
-    print(f"Found {len(image_paths)} images in {args.input_path}")
+    clip_features_path = os.path.join(args.input_path, "clip_features")
+    sam2_masks_path = os.path.join(args.input_path, "sam2_masks")
+    clip_feature_paths = sorted(glob.glob(f"{clip_features_path}/*.pt"))
+    print(f"Found {len(clip_feature_paths)} CLIP features in {clip_features_path}")
+    
+    # Load CLIP text features
+    clip_text_features = torch.load(os.path.join(clip_features_path, "scene_classes_features.pt"),
+                                    weights_only=True).to(device)
 
-    for image_path in tqdm(image_paths, desc="Processing feature files"):
-        
-        
-        save_SRMR(clip_vis_feature, clip_text_features, sam2_masks, image_path.stem, args)
+    for clip_feature_file_path in tqdm(clip_feature_paths, desc="Processing feature files"):
+        save_name = Path(clip_feature_file_path).stem
+        if save_name == "scene_classes_features":
+            continue
+        scale_index = np.randint(0, 3)  # Randomly select a scale index
+        clip_vis_feature = torch.load(clip_feature_file_path, weights_only=True)[scale_index].to(device)  # [H, W, D]
+        sam2_masks_file_path = os.path.join(sam2_masks_path, f"{save_name}.pt")
+        sam2_masks = torch.load(sam2_masks_file_path, weights_only=True).to(device)  # [N, H, W]
+        save_SRMR(clip_vis_feature, clip_text_features, sam2_masks, save_name, args)
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Extract SAM2 masks from images")
     parser.add_argument("--input_path", type=str, required=True, help="Path to input images directory")
+    parser.add_argument("--downscale", type=int, default=2, help="Downscale factor for image size")
     parser.add_argument("--save_path", type=str, default="", help="Path to save output masks")
     parser.add_argument("--gpu_id", type=int, default=0, help="GPU ID to use for computation")
     args = parser.parse_args()
 
-    get_sam2_masks_from_path(args)
-
+    # get_sam2_masks_from_path(args)
+    # save_all_SRMR_from_path(args)
     print(f"Processing complete.")

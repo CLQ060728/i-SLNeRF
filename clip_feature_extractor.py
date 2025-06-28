@@ -53,7 +53,7 @@ def get_clip_text_features(args):
             class_embedding /= class_embedding.norm()
             zeroshot_weights.append(class_embedding)
         
-        zeroshot_weights = torch.stack(zeroshot_weights, dim=0).to(device)
+        zeroshot_weights = torch.stack(zeroshot_weights, dim=0)
     print(f"Text features extracted with shape {zeroshot_weights.size()}!")
     
     del model
@@ -151,10 +151,11 @@ def extract_clip_features(args):
 
     for image_path in tqdm(image_paths):
 
-        down_sample = 4
+        down_sample = args.downscale
         image_path = Path(image_path)
         image = Image.open(image_path).convert("RGB")  # Ensure the image is in RGB format
-        image = image.resize((image.width//down_sample, image.height//down_sample))
+        image = image.resize((image.width // down_sample, image.height // down_sample),
+                             resample=Image.BILINEAR)
 
         patch_sizes = [min(image.size)//5, min(image.size)//8, min(image.size)//10]
 
@@ -199,8 +200,8 @@ def extract_clip_features(args):
 
                 image_feature.append(sum_feature / count)
 
-        image_feature = torch.cat(image_feature).detach().cpu() # [scale, D, height, width]
-        image_feature = image_feature.permute(0, 2, 3, 1)  # Change to [scale, height, width, D]
+        image_feature = torch.cat(image_feature).detach() # [scale, D, height, width]
+        image_feature = image_feature.permute(0, 2, 3, 1).cpu()  # Change to [scale, height, width, D]
         # image_feature = image_feature.half()  # Reduce the feature size by half for memory efficiency
         print(f"Extracted features for {image_path.name} with shape {image_feature.size()}")
 
@@ -227,7 +228,7 @@ def save_clip_features_relevancy_map(clip_text_features, clip_vis_feature, save_
     clip_text_features_normalized = F.normalize(clip_text_features, dim=1) # [N2, D], N2 is the number of scene classes
     clip_vis_feature_normalized = F.normalize(clip_vis_feature, dim=1) # [N1, D], N1 is 1 or H*W, D is the feature dimension
     # Compute cosine similarity
-    relevancy_map = torch.mm(clip_vis_feature_normalized, clip_text_features_normalized.T).half() # [N1,N2]
+    relevancy_map = torch.mm(clip_vis_feature_normalized, clip_text_features_normalized.T).float() # [N1,N2]
 
     # Save the relevancy map 'clip_relevancy_maps/'
     save_path = args.save_path
@@ -263,11 +264,12 @@ if __name__ == "__main__":
     parser.add_argument("--input_path", type=str)
     parser.add_argument("--clip_model", type=str, default="ViT-B-16")
     parser.add_argument("--pretrained", type=str, default="dfn2b")
+    parser.add_argument("--downscale", type=int, default=2, help="Downscale factor for image size")
     parser.add_argument("--gpu_id", type=int, default=0)
     parser.add_argument("--save_path", type=str)
     args = parser.parse_args()
 
     # extract_clip_features(args)
     # get_clip_text_features(args)
-    save_all_relevancy_maps_from_path(args)
+    # save_all_relevancy_maps_from_path(args)
 
