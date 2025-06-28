@@ -271,7 +271,7 @@ def save_videos(
     keys: List[str] = ["gt_rgbs", "rgbs", "depths"],
     num_cams: int = 3,
     save_seperate_video: bool = False,
-    save_images: bool = False,
+    save_images: bool = True,
     fps: int = 10,
     verbose: bool = True,
 ):
