@@ -12,6 +12,7 @@ from PIL.Image import Resampling
 import cv2
 from pathlib import Path
 import glob, json, os
+from torch import Tensor
 
 
 def get_sam2_masks(image, device='cuda:0'):
