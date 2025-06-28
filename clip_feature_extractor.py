@@ -61,7 +61,7 @@ def get_clip_text_features(args):
     
     zeroshot_weights = zeroshot_weights.detach().cpu()  # Move to CPU for saving
 
-    # save the extracted feature
+    # save the extracted feature 'clip_features/'
     save_path = args.save_path
     os.makedirs(save_path, exist_ok=True)
     print(f"Saving text features to {save_path}/scene_classes_features.pt")
@@ -147,7 +147,7 @@ def extract_clip_features(args):
     )
     model.eval()
 
-    image_paths = sorted(glob.glob(f'{args.images_path}/*'))
+    image_paths = sorted(glob.glob(f'{args.input_path}/*'))
 
     for image_path in tqdm(image_paths):
 
@@ -200,10 +200,11 @@ def extract_clip_features(args):
                 image_feature.append(sum_feature / count)
 
         image_feature = torch.cat(image_feature).detach().cpu() # [scale, D, height, width]
+        image_feature = image_feature.permute(0, 2, 3, 1)  # Change to [scale, height, width, D]
         # image_feature = image_feature.half()  # Reduce the feature size by half for memory efficiency
         print(f"Extracted features for {image_path.name} with shape {image_feature.size()}")
 
-        # save the extracted feature
+        # save the extracted feature 'clip_features/'
         save_path = args.save_path
         os.makedirs(save_path, exist_ok=True)
         print(f"Saving image features to {save_path}/{image_path.stem}.pt")
@@ -228,7 +229,7 @@ def save_clip_features_relevancy_map(clip_text_features, clip_vis_feature, save_
     # Compute cosine similarity
     relevancy_map = torch.mm(clip_vis_feature_normalized, clip_text_features_normalized.T).half() # [N1,N2]
 
-    # Save the relevancy map
+    # Save the relevancy map 'clip_relevancy_maps/'
     save_path = args.save_path
     os.makedirs(save_path, exist_ok=True)
     print(f"Saving relevancy map to {save_path}/{save_name}.pt")
@@ -241,13 +242,15 @@ def save_all_relevancy_maps_from_path(args):
     :param args: Arguments containing input path, save path, and GPU ID.
     """
     # Load CLIP text features
-    clip_text_features = torch.load(os.path.join(args.input_path, "scene_classes.pt"))
+    clip_text_features = torch.load(os.path.join(args.input_path, "scene_classes_features.pt"))
 
     # Get all image feature files
     image_feature_files = sorted(glob.glob(f"{args.input_path}/*.pt"))
     print(f"Found {len(image_feature_files)} image feature files in {args.input_path}")
 
     for image_feature_file in tqdm(image_feature_files, desc="Processing images"):
+        if Path(image_feature_file).stem == "scene_classes_features":
+            continue  # Skip the text features file
         clip_image_feature = torch.load(image_feature_file, weights_only=True)  # Load the image feature
         save_name = Path(image_feature_file).stem  # Use the file name without extension as save name
         print(f"Processing {save_name} with shape {clip_image_feature.size()}")

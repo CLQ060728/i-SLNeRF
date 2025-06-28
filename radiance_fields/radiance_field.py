@@ -1075,7 +1075,7 @@ def compute_SRMR(vis_feature: Tensor, clip_text_features: Tensor, sam2_masks: Te
     # Compute cosine similarity
     relevancy_map = torch.mm(vis_feature_normalized, clip_text_features_normalized.T) # [N1,N2]        
     p_class = F.softmax(relevancy_map, dim=1) # [N1,N2]
-    class_index = torch.argmax(p_class, dim=-1).cpu() # [N1]
+    class_index = torch.argmax(p_class, dim=-1) # [N1]
     pred_index = class_index.reshape(H, W).unsqueeze(0) # [1,H,W]
 
     # Refine SAM2 masks using the predicted class_index  
@@ -1115,7 +1115,7 @@ def compute_SRMR_from_relevancy_map(
     device = relevancy_map.device
     
     p_class = F.softmax(relevancy_map, dim=1) # [N1,N2]
-    class_index = torch.argmax(p_class, dim=-1).cpu() # [N1]
+    class_index = torch.argmax(p_class, dim=-1) # [N1]
     pred_index = class_index.reshape(H, W).unsqueeze(0) # [1,H,W]
 
     # Refine SAM2 masks using the predicted class_index  

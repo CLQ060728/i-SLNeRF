@@ -76,6 +76,74 @@ def get_sam2_masks_from_path(args):
         torch.save(masks, save_file_path)
 
 
+def save_SRMR(clip_vis_feature: Tensor, clip_text_features: Tensor, sam2_masks: Tensor, save_name, args):
+    """
+    Save the SRMR (Semantic Relevancy Map Regularization) map for a given image feature and
+    its related scene classes features.
+    :param vis_feature: visual features of the image (H, W, D).
+    :param clip_text_features: CLIP text features of the scene classes.
+    :param sam2_masks: SAM2 masks for the image.
+    :param save_name: Name to save the SRMR map.
+    :param args: Arguments containing GPU ID and other configurations.
+    :return: A tensor of shape (H, W) with the regularized relavancy map of each pixel.
+    """
+    H, W =  clip_vis_feature.size(0), clip_vis_feature.size(1) # [height, width]
+    device = clip_vis_feature.device
+    
+    # Get Clip features 
+    clip_vis_feature = clip_vis_feature.reshape(-1, clip_vis_feature.size(-1)) # [N1, D], N1 is H*W, D is the feature dimension
+    clip_text_features_normalized = F.normalize(clip_text_features, dim=1) # [N2, D], N2 is the number of scene classes
+    clip_vis_feature_normalized = F.normalize(clip_vis_feature, dim=1) # [N1, D], N1 is 1 or H*W, D is the feature dimension
+    # Compute cosine similarity
+    relevancy_map = torch.mm(clip_vis_feature_normalized, clip_text_features_normalized.T) # [N1,N2]        
+    p_class = F.softmax(relevancy_map, dim=1) # [N1,N2]
+    class_index = torch.argmax(p_class, dim=-1) # [N1]
+    pred_index = class_index.reshape(H, W).unsqueeze(0) # [1,H,W]
+
+    # Refine SAM2 masks using the predicted class_index  
+    sam_refined_pred = torch.zeros((pred_index.shape[1], pred_index.shape[2]),
+                                   dtype=torch.long).to(device)
+
+    for ann in sam2_masks:
+        cur_mask = ann.squeeze()  # [H, W], current mask for the annotation                  
+        sub_mask = pred_index.squeeze().clone()
+        sub_mask[~cur_mask] = 0
+        # .view(-1) collapses all dimensions into a single dimension, It is equivalent to tensor.reshape(-1).
+        flat_sub_mask = sub_mask.clone().view(-1)           
+        flat_sub_mask = flat_sub_mask[flat_sub_mask!=0]
+        
+        if len(flat_sub_mask) != 0:                         
+            unique_elements, counts = torch.unique(flat_sub_mask, return_counts=True)  
+            most_common_element = unique_elements[int(counts.argmax().item())]  
+        else:                                               
+            continue 
+
+        sam_refined_pred[cur_mask] = most_common_element  
+    
+    # save the extracted masks
+    save_path = args.save_path
+    os.makedirs(save_path, exist_ok=True)
+    save_file_path = os.path.join(save_path, f"{save_name}.pt")
+    torch.save(sam_refined_pred, save_file_path)
+
+
+def save_all_SRMR_from_path(args):
+    """
+    Save SRMR maps for all feature files in a specified root directory.
+    :param args: Arguments containing input path and GPU ID.
+    :return: None
+    """
+    device = torch.device(f"cuda:{args.gpu_id}" if torch.cuda.is_available() else "cpu")
+
+    image_paths = sorted(glob.glob(f"{args.input_path}/*.jpg"))
+    print(f"Found {len(image_paths)} images in {args.input_path}")
+
+    for image_path in tqdm(image_paths, desc="Processing feature files"):
+        
+        
+        save_SRMR(clip_vis_feature, clip_text_features, sam2_masks, image_path.stem, args)
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Extract SAM2 masks from images")
     parser.add_argument("--input_path", type=str, required=True, help="Path to input images directory")
@@ -84,4 +152,5 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     get_sam2_masks_from_path(args)
+
     print(f"Processing complete.")
