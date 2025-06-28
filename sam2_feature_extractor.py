@@ -8,6 +8,7 @@ from sam2.automatic_mask_generator import SAM2AutomaticMaskGenerator
 import argparse
 from tqdm import tqdm
 from PIL import Image
+from PIL.Image import Resampling
 import cv2
 from pathlib import Path
 import glob, json, os
@@ -69,14 +70,17 @@ def get_sam2_masks_from_path(args):
 
     for image_path in tqdm(image_paths, desc="Processing images"):
         image_path = Path(image_path)
-        image = np.array(Image.open(image_path).convert("RGB"))
-        print(f"Processing image: {image_path.name}, shape: {image.shape}")
-        image = cv2.resize(image, (image.shape[1] // args.downscale, image.shape[0] // args.downscale),
-                           interpolation=cv2.INTER_LINEAR)
-        print(f"Resized image: {image.shape}")
+        image = Image.open(image_path).convert("RGB")
+        print(f"Processing image: {image_path.name}, shape: {image.size}")
+        # image = cv2.resize(image, (image.shape[1] // args.downscale, image.shape[0] // args.downscale),
+                        #    interpolation=cv2.INTER_LINEAR)
+        image = image.resize((image.width // args.downscale, image.height // args.downscale),
+                            resample=Resampling.BILINEAR)
+        print(f"Resized image: {image.size}")
+        image = np.array(image)  # Convert to numpy array
         masks = get_sam2_masks(image, device=device)
         
-        print(f"Extracted masks from {image_path.name}, shape: {masks.shape}, dtype: {masks.dtype}")
+        print(f"Extracted masks from {image_path.name}, shape: {masks.size()}, dtype: {masks.dtype}")
         save_file_path = os.path.join(save_path, f"{image_path.stem}.pt")
         torch.save(masks, save_file_path)
 
