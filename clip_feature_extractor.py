@@ -5,6 +5,7 @@ import argparse
 import torch
 import open_clip
 from PIL import Image
+from PIL.Image import Resampling
 from pathlib import Path
 import random, glob, os
 from tqdm import tqdm
@@ -28,6 +29,7 @@ def get_clip_text_features(args):
     model, _, _ = open_clip.create_model_and_transforms(
         model_name=args.clip_model,
         pretrained=args.pretrained,
+        force_quick_gelu=True,
         device=device
     )
     model = model.to(device)
@@ -155,7 +157,7 @@ def extract_clip_features(args):
         image_path = Path(image_path)
         image = Image.open(image_path).convert("RGB")  # Ensure the image is in RGB format
         image = image.resize((image.width // down_sample, image.height // down_sample),
-                             resample=Image.BILINEAR)
+                             resample=Resampling.BILINEAR)
 
         patch_sizes = [min(image.size)//5, min(image.size)//8, min(image.size)//10]
 
