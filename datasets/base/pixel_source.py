@@ -212,7 +212,7 @@ class ScenePixelSource(abc.ABC):
             self.img_filepaths, desc="Loading images", dynamic_ncols=True
         ):
             rgb = Image.open(fname).convert("RGB")
-            # resize them to the load_size
+            # resize them to the load_size load_size[1] - width,x, load_size[0] - height,y.
             rgb = rgb.resize(
                 (self.data_cfg.load_size[1], self.data_cfg.load_size[0]), Image.BILINEAR
             )
