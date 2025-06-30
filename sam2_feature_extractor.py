@@ -158,8 +158,12 @@ def save_all_SRMR_from_path(args):
         save_name = Path(clip_feature_file_path).stem
         if save_name == "scene_classes_features":
             continue
-        scale_index = np.randint(0, 3)  # Randomly select a scale index
-        clip_vis_feature = torch.load(clip_feature_file_path, weights_only=True)[scale_index].to(device)  # [H, W, D]
+        clip_vis_feature = torch.load(clip_feature_file_path, weights_only=True).to(device)  # [S, H, W, D]
+        print(f"Processing feature file: {clip_feature_file_path}, shape: {clip_vis_feature.size()}")
+        scale_index = torch.randint(0, clip_vis_feature.size(0), (1,))[0]  # Randomly select a scale index
+        print(f"Selected scale index: {scale_index}")
+        clip_vis_feature = clip_vis_feature[scale_index]  # [H, W, D]
+        print(f"Selected feature shape: {clip_vis_feature.size()}")
         sam2_masks_file_path = os.path.join(sam2_masks_path, f"{save_name}.pt")
         sam2_masks = torch.load(sam2_masks_file_path, weights_only=True).to(device)  # [N, H, W]
         save_SRMR(clip_vis_feature, clip_text_features, sam2_masks, save_name, args)
