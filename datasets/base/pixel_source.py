@@ -13,6 +13,7 @@ from omegaconf import OmegaConf
 from PIL import Image
 from torch import Tensor
 from tqdm import tqdm
+from pathlib import Path
 
 logger = logging.getLogger()
 
@@ -115,7 +116,10 @@ class ScenePixelSource(abc.ABC):
     # the vision depth maps of all images, shape: (num_imgs, load_size[0], load_size[1])
     depth_maps: Tensor = None
     # the segmentation masks of all images, shape: (num_imgs, load_size[0], load_size[1], total_features)
-    semantic_masks: Tensor = None
+    clip_text_features: Tensor = None
+    clip_vis_features: Tensor = None
+    sam2_masks: Tensor = None
+    srmr_masks: Tensor = None
     instance_masks: Tensor = None
     instance_confidences: Tensor = None
     # importance sampling weights of all images,
@@ -141,7 +145,10 @@ class ScenePixelSource(abc.ABC):
         self.img_filepaths = []
         self.sky_mask_filepaths = []
         self.depth_map_filepaths = []
-        self.seg_mask_filepaths = []
+        self.ins_mask_filepaths = []
+        self.clip_feature_filepaths = []
+        self.sam2_mask_filepaths = []
+        self.srmr_mask_filepaths = []
         raise NotImplementedError
 
     @abc.abstractmethod
@@ -160,7 +167,8 @@ class ScenePixelSource(abc.ABC):
         self.load_rgb()
         self.load_sky_mask()
         self.load_depth_map()
-        self.load_segmentation_mask()
+        self.load_instance_mask()
+        self.load_semantic_features()
         # build the pixel error buffer
         self.build_pixel_error_buffer()
         logger.info("[Pixel] All Pixel Data loaded.")
@@ -265,33 +273,33 @@ class ScenePixelSource(abc.ABC):
         self.depth_maps = torch.from_numpy(np.stack(depth_maps, axis=0)).float()
         logger.info(f"self.depth maps size: {self.depth_maps.size()}")
 
-    def load_segmentation_mask(self) -> None:
+    def load_instance_mask(self) -> None:
         """
-        Load the segmentation masks if they are available.
+        Load the instance segmentation masks if they are available.
         """
-        if not self.data_cfg.load_segmentation:
+        if not self.data_cfg.load_instance:
             return
-        semantic_masks = []
+        # semantic_masks = []
         instance_masks, instance_confidences = [], []
         
         for fname in tqdm(
-            self.seg_mask_filepaths, desc="Loading segmentation masks", dynamic_ncols=True
+            self.ins_mask_filepaths, desc="Loading instance segmentation masks", dynamic_ncols=True
         ):
             # seg_mask = np.load(fname)
             # seg_mask = torch.load(fname, map_location=torch.device('cpu'))
-            seg_mask = torch.load(fname)
+            ins_mask = torch.load(fname, weights_only=True)
 
             # resize them to the load_size
-            semantic_mask = seg_mask[..., 0].numpy()
-            instance_mask = seg_mask[..., 1].numpy()
-            instance_confidence = seg_mask[..., 2].numpy()
+            # semantic_mask = seg_mask[..., 0].numpy()
+            instance_mask = ins_mask[..., 1].numpy()
+            instance_confidence = ins_mask[..., 2].numpy()
             
-            semantic_mask = semantic_mask.squeeze()
+            # semantic_mask = semantic_mask.squeeze()
             instance_mask = instance_mask.squeeze()
             instance_confidence = instance_confidence.squeeze()
-            semantic_mask = cv2.resize(semantic_mask,
-                                   (self.data_cfg.load_size[1], self.data_cfg.load_size[0]),
-                                    interpolation=cv2.INTER_NEAREST)
+            # semantic_mask = cv2.resize(semantic_mask,
+            #                        (self.data_cfg.load_size[1], self.data_cfg.load_size[0]),
+            #                         interpolation=cv2.INTER_NEAREST)
             instance_mask = cv2.resize(instance_mask,
                                    (self.data_cfg.load_size[1], self.data_cfg.load_size[0]),
                                     interpolation=cv2.INTER_NEAREST)
@@ -299,16 +307,54 @@ class ScenePixelSource(abc.ABC):
                                    (self.data_cfg.load_size[1], self.data_cfg.load_size[0]),
                                     interpolation=cv2.INTER_NEAREST)
             
-            semantic_masks.append(np.array(semantic_mask))
+            # semantic_masks.append(np.array(semantic_mask))
             instance_masks.append(np.array(instance_mask))
             instance_confidences.append(np.array(instance_confidence))
-        self.semantic_masks = torch.from_numpy(np.stack(semantic_masks, axis=0)).half()
+        # self.semantic_masks = torch.from_numpy(np.stack(semantic_masks, axis=0)).half()
         self.instance_masks = torch.from_numpy(np.stack(instance_masks, axis=0)).half()
         self.instance_confidences = torch.from_numpy(np.stack(instance_confidences, axis=0)).half()
         
-        logger.info(f"self.semantic_masks size: {self.semantic_masks.size()}")
+        # logger.info(f"self.semantic_masks size: {self.semantic_masks.size()}")
         logger.info(f"self.instance_masks size: {self.instance_masks.size()}")
         logger.info(f"self.instance_confidences size: {self.instance_confidences.size()}")
+
+    def load_semantic_features(self) -> None:
+        """
+        Load CLIP text and visual features and SAM2 masks if they are available.
+        """
+        if not self.data_cfg.load_semantic:
+            return
+        
+        clip_vis_features = []
+        for fname in tqdm(
+            self.clip_feature_filepaths, desc="Loading CLIP features", dynamic_ncols=True
+        ):
+        if Path(fname).stem == "scene_classes_features":
+            self.clip_text_features = torch.load(fname, weights_only=True)
+        else:
+            clip_vis_feature = torch.load(fname, weights_only=True)
+            clip_vis_features.append(clip_vis_feature)
+        self.clip_vis_features = torch.stack(clip_vis_features, dim=0)
+
+        sam2_masks = []
+        for fname in tqdm(
+            self.sam2_mask_filepaths, desc="Loading SAM2 masks", dynamic_ncols=True
+        ):
+            sam2_mask = torch.load(fname, weights_only=True)
+            sam2_masks.append(sam2_mask)
+        self.sam2_masks = torch.stack(sam2_masks, dim=0)
+
+        srmr_masks = []
+        for fname in tqdm(
+            self.srmr_mask_filepaths, desc="Loading GT SRMR masks", dynamic_ncols=True
+        ):
+            srmr_mask = torch.load(fname, weights_only=True)
+            srmr_masks.append(srmr_mask)
+        self.srmr_masks = torch.stack(srmr_masks, dim=0)
+
+        logger.info(f"self.clip_vis_features size: {self.clip_vis_features.size()}")
+        logger.info(f"self.sam2_masks size: {self.sam2_masks.size()}")
+        logger.info(f"self.srmr_masks size: {self.srmr_masks.size()}")
 
     def get_aabb_specified(self, aabb) -> Tensor:
         """
@@ -685,7 +731,8 @@ class ScenePixelSource(abc.ABC):
             a dict of the sampled rays.
         """
         rgb, sky_mask, depth_map = None, None, None
-        semantic_mask, instance_mask, instance_confidence = None, None, None
+        instance_mask, instance_confidence = None, None
+        clip_vis_feature, sam2_mask, srmr_mask = None, None, None
         pixel_coords, normalized_timestamps = None, None
         if self.buffer_ratio > 0 and self.pixel_error_buffered:
             num_roi_rays = int(num_rays * self.buffer_ratio)
@@ -718,6 +765,15 @@ class ScenePixelSource(abc.ABC):
         # if self.semantic_masks is not None:
         #     semantic_mask = self.semantic_masks[img_idx, y, x]
         #     print(f"semantic_mask: {semantic_mask.size()}\n")
+        if self.clip_vis_features is not None:
+            clip_vis_feature = self.clip_vis_features[img_idx, :, y, x]
+            print(f"clip_vis_feature: {clip_vis_feature.size()}\n")
+        if self.sam2_masks is not None:
+            sam2_mask = self.sam2_masks[img_idx, y, x]
+            print(f"sam2_mask: {sam2_mask.size()}")
+        if self.srmr_masks is not None:
+            srmr_mask = self.srmr_masks[img_idx, y, x]
+            print(f"srmr_mask: {srmr_mask.size()}")
         if self.instance_masks is not None:
             instance_mask = self.instance_masks[img_idx, y, x]
             print(f"instance_mask: {instance_mask.size()}\n")
@@ -747,7 +803,10 @@ class ScenePixelSource(abc.ABC):
             "pixels": rgb,
             "sky_masks": sky_mask,
             "depth_maps": depth_map,
-            "semantic_masks": semantic_mask,
+            "clip_text_features": self.clip_text_features,
+            "clip_vis_features": clip_vis_feature,
+            "sam2_masks": sam2_mask,
+            "srmr_masks": srmr_mask,
             "instance_masks": instance_mask,
             "instance_confidences": instance_confidence
         }
