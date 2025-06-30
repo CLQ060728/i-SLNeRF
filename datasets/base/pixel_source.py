@@ -706,40 +706,32 @@ class ScenePixelSource(abc.ABC):
         pixel_coords = torch.stack([y / self.HEIGHT, x / self.WIDTH], dim=-1)
         if self.images is not None:
             rgb = self.images[img_idx, y, x]
-            logger.info(f"img_idx: {img_idx.size()}")
-            logger.info(f"y: {y.size()}")
-            logger.info(f"x: {x.size()}")
-            logger.info(f"rgb: {rgb.size()}")
-            # print(f"rgb: {rgb.size()}\n")
+            print(f"img_idx: {img_idx.size()}\n")
+            print(f"y: {y.size()}\n")
+            print(f"x: {x.size()}\n")
         if self.sky_masks is not None:
             sky_mask = self.sky_masks[img_idx, y, x]
-            logger.info(f"sky_mask: {sky_mask.size()}")
-            # print(f"sky_mask: {sky_mask.size()}\n")
+            print(f"sky_mask: {sky_mask.size()}\n")
         if self.depth_maps is not None:
             depth_map = self.depth_maps[img_idx, y, x]
-            logger.info(f"depth_map: {depth_map.size()}")
-            # print(f"depth_map: {depth_map.size()}\n")
+            print(f"depth_map: {depth_map.size()}\n")
         # if self.semantic_masks is not None:
         #     semantic_mask = self.semantic_masks[img_idx, y, x]
         #     print(f"semantic_mask: {semantic_mask.size()}\n")
         if self.instance_masks is not None:
             instance_mask = self.instance_masks[img_idx, y, x]
-            logger.info(f"instance_mask: {instance_mask.size()}")
-            # print(f"instance_mask: {instance_mask.size()}\n")
+            print(f"instance_mask: {instance_mask.size()}\n")
         if self.instance_confidences is not None:
             instance_confidence = self.instance_confidences[img_idx, y, x]
-            logger.info(f"instance_confidence: {instance_confidence.size()}")
-            # print(f"instance_confidence: {instance_confidence.size()}\n")
+            print(f"instance_confidence: {instance_confidence.size()}\n")
         if self.normalized_timestamps is not None:
             normalized_timestamps = self.normalized_timestamps[img_idx]
         if self.cam_ids is not None:
             camera_id = self.cam_ids[img_idx]
         image_id = torch.ones_like(x) * img_idx
-        logger.info(f"image_id: {image_id.size()}")
-        # print(f"image_id: {image_id.size()}\n")
+        print(f"image_id: {image_id.size()}\n")
         c2w = self.cam_to_worlds[img_idx]
-        logger.info(f"c2w: {c2w.size()}")
-        # print(f"c2w: {c2w.size()}\n")
+        print(f"c2w: {c2w.size()}\n")
         intrinsics = self.intrinsics[img_idx]
         origins, viewdirs, direction_norm = get_rays(x, y, c2w, intrinsics)
         data = {
