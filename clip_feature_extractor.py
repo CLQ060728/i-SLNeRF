@@ -223,7 +223,7 @@ def save_clip_features_relevancy_map(clip_text_features, clip_vis_feature, save_
     :param args: Arguments containing save path, gpu_id.
     """
     device = torch.device(f"cuda:{args.gpu_id}" if torch.cuda.is_available() else "cpu")
-    H, W = clip_vis_feature.size(0), clip_vis_features.size(1)  # Get height and width of the visual features
+    H, W = clip_vis_feature.size(0), clip_vis_feature.size(1)  # Get height and width of the visual features
 
     clip_vis_feature = clip_vis_feature.reshape(-1, clip_vis_feature.size(-1)).to(device) # [N1, D], N1 is H*W, D is the feature dimension
     clip_text_features = clip_text_features.to(device)  # [N2, D], N2 is the number of scene classes

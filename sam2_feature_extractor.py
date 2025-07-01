@@ -88,7 +88,7 @@ def get_sam2_masks_from_path(args):
 
 def save_SRMR(clip_vis_feature: Tensor, clip_text_features: Tensor, sam2_masks: Tensor, save_name, args):
     """
-    Save the SRMR (Semantic Relevancy Map Regularization) map for a given image feature and
+    Save the SRMR (Semantic Relevancy Map Refinement) map for a given image feature and
     its related scene classes features.
     :param vis_feature: visual features of the image (H, W, D).
     :param clip_text_features: CLIP text features of the scene classes.

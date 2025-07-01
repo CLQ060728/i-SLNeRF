@@ -277,7 +277,7 @@ class ScenePixelSource(abc.ABC):
         """
         Load the instance segmentation masks if they are available.
         """
-        if not self.data_cfg.load_instance:
+        if not self.data_cfg.load_segmentation:
             return
         # semantic_masks = []
         instance_masks, instance_confidences = [], []
@@ -322,18 +322,18 @@ class ScenePixelSource(abc.ABC):
         """
         Load CLIP text and visual features and SAM2 masks if they are available.
         """
-        if not self.data_cfg.load_semantic:
+        if not self.data_cfg.load_segmentation:
             return
         
         clip_vis_features = []
         for fname in tqdm(
             self.clip_feature_filepaths, desc="Loading CLIP features", dynamic_ncols=True
         ):
-        if Path(fname).stem == "scene_classes_features":
-            self.clip_text_features = torch.load(fname, weights_only=True)
-        else:
-            clip_vis_feature = torch.load(fname, weights_only=True)
-            clip_vis_features.append(clip_vis_feature)
+            if Path(fname).stem == "scene_classes_features":
+                self.clip_text_features = torch.load(fname, weights_only=True)
+            else:
+                clip_vis_feature = torch.load(fname, weights_only=True)
+                clip_vis_features.append(clip_vis_feature)
         self.clip_vis_features = torch.stack(clip_vis_features, dim=0)
 
         sam2_masks = []
@@ -731,8 +731,8 @@ class ScenePixelSource(abc.ABC):
             a dict of the sampled rays.
         """
         rgb, sky_mask, depth_map = None, None, None
-        instance_mask, instance_confidence = None, None
         clip_vis_feature, sam2_mask, srmr_mask = None, None, None
+        instance_mask, instance_confidence = None, None
         pixel_coords, normalized_timestamps = None, None
         if self.buffer_ratio > 0 and self.pixel_error_buffered:
             num_roi_rays = int(num_rays * self.buffer_ratio)
@@ -821,7 +821,8 @@ class ScenePixelSource(abc.ABC):
             a dict containing the rays for rendering the given image index.
         """
         rgb, sky_mask, depth_map = None, None, None
-        semantic_mask, instance_mask, instance_confidence = None, None, None
+        clip_vis_feature, sam2_mask, srmr_mask = None, None, None
+        instance_mask, instance_confidence = None, None
         pixel_coords, normalized_timestamps = None, None
         if self.images is not None:
             rgb = self.images[img_idx]
@@ -879,18 +880,42 @@ class ScenePixelSource(abc.ABC):
                     .squeeze(0)
                     .squeeze(0)
                 )
-        if self.semantic_masks is not None:
-            semantic_mask = self.semantic_masks[img_idx]
-            if self.downscale_factor != 1.0:
-                semantic_mask = (
-                    torch.nn.functional.interpolate(
-                        semantic_mask.unsqueeze(0).unsqueeze(0),
-                        scale_factor=self.downscale_factor,
-                        mode="nearest",
-                    )
-                    .squeeze(0)
-                    .squeeze(0)
-                )
+        if self.clip_vis_features is not None:
+            clip_vis_feature = self.clip_vis_features[img_idx]
+            # if self.downscale_factor != 1.0:
+            #     clip_vis_feature = (
+            #         torch.nn.functional.interpolate(
+            #             clip_vis_feature.unsqueeze(0).unsqueeze(0),
+            #             scale_factor=self.downscale_factor,
+            #             mode="nearest",
+            #         )
+            #         .squeeze(0)
+            #         .squeeze(0)
+            #     )
+        if self.sam2_masks is not None:
+            sam2_mask = self.sam2_masks[img_idx]
+            # if self.downscale_factor != 1.0:
+            #     sam2_mask = (
+            #         torch.nn.functional.interpolate(
+            #             sam2_mask.unsqueeze(0).unsqueeze(0),
+            #             scale_factor=self.downscale_factor,
+            #             mode="nearest",
+            #         )
+            #         .squeeze(0)
+            #         .squeeze(0)
+            #     )
+        if self.srmr_masks is not None:
+            srmr_mask = self.srmr_masks[img_idx]
+            # if self.downscale_factor != 1.0:
+            #     srmr_mask = (
+            #         torch.nn.functional.interpolate(
+            #             srmr_mask.unsqueeze(0).unsqueeze(0),
+            #             scale_factor=self.downscale_factor,
+            #             mode="nearest",
+            #         )
+            #         .squeeze(0)
+            #         .squeeze(0)
+            #     )
         if self.instance_masks is not None:
             instance_mask = self.instance_masks[img_idx]
             if self.downscale_factor != 1.0:
@@ -951,7 +976,10 @@ class ScenePixelSource(abc.ABC):
             "pixels": rgb,
             "sky_masks": sky_mask,
             "depth_maps": depth_map,
-            "semantic_masks": semantic_mask,
+            "clip_text_features": self.clip_text_features,
+            "clip_vis_features": clip_vis_feature,
+            "sam2_masks": sam2_mask,
+            "srmr_masks": srmr_mask,
             "instance_masks": instance_mask,
             "instance_confidences": instance_confidence
         }

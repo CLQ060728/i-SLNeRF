@@ -187,8 +187,10 @@ class NuScenesPixelSource(ScenePixelSource):
         logger.info(f"[Pixel] End timestep: {self.end_timestep}")
 
         img_filepaths, sky_mask_filepaths, depth_map_filepaths = [], [], []
-        seg_mask_filepaths = []
-        # TODO: support dynamic masks
+        ins_mask_filepaths = []
+        clip_feature_filepaths = []
+        sam2_mask_filepaths = []
+        srmr_mask_filepaths = []
 
         for t in range(self.start_timestep, self.end_timestep):
             for cam_idx in self.camera_list:
@@ -204,13 +206,26 @@ class NuScenesPixelSource(ScenePixelSource):
                 depth_map_filepaths.append(os.path.join(
                     self.data_path, "vision_depth", f"{t:03d}_{cam_idx}.npy"
                 ))
-                seg_mask_filepaths.append(os.path.join(
-                    self.data_path, "seg_masks", f"{t:03d}_{cam_idx}.pt")
+                ins_mask_filepaths.append(
+                    os.path.join(self.data_path, "ins_masks", f"{t:03d}_{cam_idx}.pt")
+                )
+                clip_feature_filepaths.append(
+                    os.path.join(self.data_path, "clip_features", f"{t:03d}_{cam_idx}.pt")
+                )
+                sam2_mask_filepaths.append(
+                    os.path.join(self.data_path, "sam2_masks", f"{t:03d}_{cam_idx}.png")
+                )
+                srmr_mask_filepaths.append(
+                    os.path.join(self.data_path, "srmr_masks", f"{t:03d}_{cam_idx}.png")
                 )
         self.img_filepaths = np.array(img_filepaths)
         self.sky_mask_filepaths = np.array(sky_mask_filepaths)
         self.depth_map_filepaths = np.array(depth_map_filepaths)
-        self.seg_mask_filepaths = np.array(seg_mask_filepaths)
+        self.ins_mask_filepaths = np.array(ins_mask_filepaths)
+        self.clip_feature_filepaths = np.array(clip_feature_filepaths)
+        self.sam2_mask_filepaths = np.array(sam2_mask_filepaths)
+        self.srmr_mask_filepaths = np.array(srmr_mask_filepaths)
+
 
     def load_calibrations(self):
         # compute per-image poses and intrinsics
