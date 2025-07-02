@@ -102,6 +102,7 @@ nerf: # i-SLNeRF hyperparameters
       split_semantic_instance: True # whether to use separate head for semantic and instance segmentation optimization
       semantic_hidden_dim: 128 # hidden dimension for semantic segmentation head
       instance_hidden_dim: 128 # hidden dimension for instance segmentation head
+      selection_scale_dim: 3 # selection scale dimension for the selection head
       semantic_embedding_dim: 128 # semantic embedding dimension
       instance_embedding_dim: 128 # instance embedding dimension
       momentum: 0.9 # momentum for the slow instance network

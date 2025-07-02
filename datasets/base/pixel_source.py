@@ -753,6 +753,7 @@ class ScenePixelSource(abc.ABC):
         pixel_coords = torch.stack([y / self.HEIGHT, x / self.WIDTH], dim=-1)
         if self.images is not None:
             rgb = self.images[img_idx, y, x]
+            print(f"rgb: {rgb.size()}\n")
             print(f"img_idx: {img_idx.size()}\n")
             print(f"y: {y.size()}\n")
             print(f"x: {x.size()}\n")
@@ -768,12 +769,15 @@ class ScenePixelSource(abc.ABC):
         if self.clip_vis_features is not None:
             clip_vis_feature = self.clip_vis_features[img_idx, :, y, x]
             print(f"clip_vis_feature: {clip_vis_feature.size()}\n")
+            print(f"clip_vis_feature.device: {clip_vis_feature.device}\n")
         if self.sam2_masks is not None:
             sam2_mask = self.sam2_masks[img_idx, y, x]
-            print(f"sam2_mask: {sam2_mask.size()}")
+            print(f"sam2_mask: {sam2_mask.size()}\n")
+            print(f"sam2_mask.device: {sam2_mask.device}\n")
         if self.srmr_masks is not None:
             srmr_mask = self.srmr_masks[img_idx, y, x]
-            print(f"srmr_mask: {srmr_mask.size()}")
+            print(f"srmr_mask: {srmr_mask.size()}\n")
+            print(f"srmr_mask.device: {srmr_mask.device}\n")
         if self.instance_masks is not None:
             instance_mask = self.instance_masks[img_idx, y, x]
             print(f"instance_mask: {instance_mask.size()}\n")

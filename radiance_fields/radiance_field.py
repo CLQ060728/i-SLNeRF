@@ -41,6 +41,7 @@ class RadianceField(nn.Module):
         segmentation_feature_dim: int = 128,
         semantic_hidden_dim: int = 64,
         instance_hidden_dim: int = 64,
+        selection_scale_dim: int = 3,
         semantic_embedding_dim: int = 128,
         instance_embedding_dim: int = 128,
         momentum: float = 0.9,
@@ -228,6 +229,14 @@ class RadianceField(nn.Module):
         self.split_semantic_instance = split_semantic_instance
         if self.enable_segmentation_head:
             if self.split_semantic_instance:
+                # selection head for semantic clip feature selection
+                self.selection_head = nn.Sequential(
+                    nn.linear(segmentation_feature_dim // 2, semantic_hidden_dim),
+                    nn.ReLU(),
+                    nn.Linear(semantic_hidden_dim, semantic_hidden_dim * 2),
+                    nn.ReLU(),
+                    nn.Linear(semantic_hidden_dim * 2, selection_scale_dim)
+                )
                 # split semantic and instance branches
                 self.semantic_head = nn.Sequential(
                 nn.Linear(segmentation_feature_dim // 2, semantic_hidden_dim),
@@ -270,6 +279,13 @@ class RadianceField(nn.Module):
                     nn.Linear(instance_embedding_dim, semantic_hidden_dim),
                     nn.ReLU(),
                     nn.Linear(semantic_hidden_dim, semantic_embedding_dim)
+                )
+                self.selection_head = nn.Sequential(
+                    nn.Linear(segmentation_feature_dim, semantic_hidden_dim),
+                    nn.ReLU(),
+                    nn.Linear(semantic_hidden_dim, semantic_hidden_dim * 2),
+                    nn.ReLU(),
+                    nn.Linear(semantic_hidden_dim * 2, selection_scale_dim)
                 )
 
 
@@ -347,11 +363,12 @@ class RadianceField(nn.Module):
         normed_positions = normed_positions * selector.unsqueeze(-1)
         return normed_positions
 
-    def ema_update_slownet(self, slownet, fastnet):
+    def ema_update_slownet(self) -> None:
         # EMA update for the slow network
         with torch.no_grad():
-            for param_fast, param_slow in zip(fastnet.parameters(), slownet.parameters()):
-                param_slow.data.mul_(self.momentum).add_((1 - self.momentum) * param_fast.detach().data)
+            for param_fast, param_slow in zip(self.fast_instance_head.parameters(),
+                                              self.slow_instance_head.parameters()):
+                param_slow.data.mul_(self.momentum).add_((1 - self.momentum) * param_fast.detach())
 
 
     def forward_static_hash(
@@ -594,56 +611,74 @@ class RadianceField(nn.Module):
         if self.enable_segmentation_head:
             if self.split_semantic_instance:
                 # split semantic and instance branches
+                selection_feats = self.selection_head(semantic_feats)
+                logger.info(f"Selection features shape: {selection_feats.size()}")
+                selection_mask = F.softmax(selection_feats, dim=-2)
                 semantic_embedding = self.semantic_head(semantic_feats)
-                semantic_embedding = F.log_softmax(semantic_embedding, dim=-1)
+                semantic_embedding = F.normalize(semantic_embedding, dim=-1)
                 fast_instance_embedding = self.fast_instance_head(instance_feats)
                 slow_instance_embedding = self.slow_instance_head(instance_feats)
-                fast_instance_embedding = F.softmax(fast_instance_embedding, dim=-1)
-                slow_instance_embedding = F.softmax(slow_instance_embedding, dim=-1)
+                fast_instance_embedding = F.normalize(fast_instance_embedding, dim=-1)
+                slow_instance_embedding = F.normalize(slow_instance_embedding, dim=-1)
                 instance_embedding = torch.cat([fast_instance_embedding, slow_instance_embedding], dim=-1)
             else:
                 # shared branch for semantic and instance
+                selection_feats = self.selection_head(segmentation_feats)
+                logger.info(f"Selection features shape: {selection_feats.size()}")
+                selection_mask = F.softmax(selection_feats, dim=-2)
                 fast_instance_embedding = self.fast_instance_head(segmentation_feats)
                 slow_instance_embedding = self.slow_instance_head(segmentation_feats)
                 instance_embedding = torch.cat([fast_instance_embedding, slow_instance_embedding], dim=-1)
                 semantic_embedding = self.semantic_head(instance_embedding)
-                semantic_embedding = F.log_softmax(semantic_embedding, dim=-1)
-                fast_instance_embedding = F.softmax(fast_instance_embedding, dim=-1)
-                slow_instance_embedding = F.softmax(slow_instance_embedding, dim=-1)
+                semantic_embedding = F.normalize(semantic_embedding, dim=-1)
+                fast_instance_embedding = F.normalize(fast_instance_embedding, dim=-1)
+                slow_instance_embedding = F.normalize(slow_instance_embedding, dim=-1)
                 instance_embedding = torch.cat([fast_instance_embedding, slow_instance_embedding], dim=-1)
             
             if self.dynamic_xyz_encoder is not None and has_timestamps:
                 if self.split_semantic_instance:
+                    dynamic_selection_feats = self.selection_head(dynamic_semantic_feats)
+                    logger.info(f"Dynamic selection features shape: {dynamic_selection_feats.size()}")
+                    dynamic_selection_mask = F.softmax(dynamic_selection_feats, dim=-2)
                     dynamic_semantic_embedding = self.semantic_head(dynamic_semantic_feats)
-                    dynamic_semantic_embedding = F.log_softmax(dynamic_semantic_embedding, dim=-1)
+                    dynamic_semantic_embedding = F.normalize(dynamic_semantic_embedding, dim=-1)
                     dynamic_fast_instance_embedding = self.fast_instance_head(dynamic_instance_feats)
                     dynamic_slow_instance_embedding = self.slow_instance_head(dynamic_instance_feats)
-                    dynamic_fast_instance_embedding = F.softmax(dynamic_fast_instance_embedding, dim=-1)
-                    dynamic_slow_instance_embedding = F.softmax(dynamic_slow_instance_embedding, dim=-1)
+                    dynamic_fast_instance_embedding = F.normalize(dynamic_fast_instance_embedding, dim=-1)
+                    dynamic_slow_instance_embedding = F.normalize(dynamic_slow_instance_embedding, dim=-1)
                     dynamic_instance_embedding = torch.cat(
                         [dynamic_fast_instance_embedding, dynamic_slow_instance_embedding], dim=-1
                     )
                 else:
+                    dynamic_selection_feats = self.selection_head(dynamic_segmentation_feats)
+                    logger.info(f"Dynamic selection features shape: {dynamic_selection_feats.size()}")
+                    dynamic_selection_mask = F.softmax(dynamic_selection_feats, dim=-2)
                     dynamic_fast_instance_embedding = self.fast_instance_head(dynamic_segmentation_feats)
                     dynamic_slow_instance_embedding = self.slow_instance_head(dynamic_segmentation_feats)
                     dynamic_instance_embedding = torch.cat(
                         [dynamic_fast_instance_embedding, dynamic_slow_instance_embedding], dim=-1
                     )
                     dynamic_semantic_embedding = self.semantic_head(dynamic_instance_embedding)
-                    dynamic_semantic_embedding = F.log_softmax(dynamic_semantic_embedding, dim=-1)
-                    dynamic_fast_instance_embedding = F.softmax(dynamic_fast_instance_embedding, dim=-1)
-                    dynamic_slow_instance_embedding = F.softmax(dynamic_slow_instance_embedding, dim=-1)
+                    dynamic_semantic_embedding = F.normalize(dynamic_semantic_embedding, dim=-1)
+                    dynamic_fast_instance_embedding = F.normalize(dynamic_fast_instance_embedding, dim=-1)
+                    dynamic_slow_instance_embedding = F.normalize(dynamic_slow_instance_embedding, dim=-1)
                     dynamic_instance_embedding = torch.cat(
                         [dynamic_fast_instance_embedding, dynamic_slow_instance_embedding], dim=-1
                     )
                 
+                results_dict["static_selection_mask"] = selection_mask
                 results_dict["static_semantic_embedding"] = semantic_embedding
                 results_dict["static_instance_embedding"] = instance_embedding
+                results_dict["dynamic_selection_mask"] = dynamic_selection_mask
                 results_dict["dynamic_semantic_embedding"] = dynamic_semantic_embedding
                 results_dict["dynamic_instance_embedding"] = dynamic_instance_embedding
                 if combine_static_dynamic:
                     static_ratio = static_density / (density + 1e-6)
                     dynamic_ratio = dynamic_density / (density + 1e-6)
+                    results_dict["selection_mask"] = (
+                        static_ratio[..., None] * selection_mask
+                        + dynamic_ratio[..., None] * dynamic_selection_mask
+                    )
                     results_dict["semantic_embedding"] = (
                         static_ratio[..., None] * semantic_embedding
                         + dynamic_ratio[..., None] * dynamic_semantic_embedding
@@ -653,6 +688,7 @@ class RadianceField(nn.Module):
                         + dynamic_ratio[..., None] * dynamic_instance_embedding
                     )
             else:
+                results_dict["selection_mask"] = selection_mask
                 results_dict["semantic_embedding"] = semantic_embedding
                 results_dict["instance_embedding"] = instance_embedding
                 
@@ -746,7 +782,7 @@ class RadianceField(nn.Module):
         dynamic_geo_feats: Tensor = None,
         data_dict: Dict[str, Tensor] = None,
     ) -> Tensor:
-        directions = (directions + 1.0) / 2.0  # do we need this?
+        directions = (directions + 1.0) / 2.0  
         h = self.direction_encoding(directions.reshape(-1, directions.shape[-1])).view(
             *directions.shape[:-1], -1
         )
@@ -804,11 +840,9 @@ class RadianceField(nn.Module):
         if self.enable_segmentation_head:
             semantic_sky_embedding = self.semantic_sky_head(dd).to(directions)
             instance_sky_embedding = self.instance_sky_head(dd).to(directions)
-            # results["semantic_sky_embedding"] = F.softmax(semantic_sky_embedding,
-            #                                               dim=-1)
-            results["semantic_sky_embedding"] = semantic_sky_embedding
-            results["instance_sky_embedding"] = F.softmax(instance_sky_embedding,
-                                                          dim=-1)
+            results["semantic_sky_embedding"] = F.sigmoid(semantic_sky_embedding)
+            # results["semantic_sky_embedding"] = semantic_sky_embedding
+            results["instance_sky_embedding"] = F.sigmoid(instance_sky_embedding)
         
         return results
 
@@ -1007,6 +1041,7 @@ def build_radiance_field_from_cfg(cfg, verbose=True) -> RadianceField:
         segmentation_feature_dim=cfg.neck.segmentation_feature_dim,
         semantic_hidden_dim=cfg.head.semantic_hidden_dim,
         instance_hidden_dim=cfg.head.instance_hidden_dim,
+        selection_scale_dim= cfg.head.selection_scale_dim,
         semantic_embedding_dim=cfg.head.semantic_embedding_dim,
         instance_embedding_dim=cfg.head.instance_embedding_dim,
         momentum=cfg.head.momentum,
@@ -1058,32 +1093,31 @@ def build_density_field(
 
 def compute_SRMR(vis_feature: Tensor, clip_text_features: Tensor, sam2_masks: Tensor) -> Tensor:
     """
-    Compute the SRMR (Semantic Relevancy Map Regularization) for a given image feature and
+    Compute the SRMR (Semantic Relevancy Map Refinement) for a given batch feature and
     its related scene classes features.
-    :param vis_feature: visual features of the image (H, W, D).
+    :param vis_feature: visual features of the batch (num_rays, D).
     :param clip_text_features: CLIP text features of the scene classes.
-    :param sam2_masks: SAM2 masks for the image.
-    :return: A tensor of shape (H, W) with the refined relavancy values for each pixel.
+    :param sam2_masks: SAM2 masks for the batch.
+    :return: A tensor of shape (num_rays,) with the refined relavancy values for each pixel.
     """
-    H, W =  vis_feature.size(0), vis_feature.size(1) # [height, width]
     device = vis_feature.device
     
     # Get Clip features 
-    vis_feature = vis_feature.reshape(-1, vis_feature.size(-1)) # [N1, D], N1 is H*W, D is the feature dimension
+    # vis_feature = vis_feature.reshape(-1, vis_feature.size(-1)) # [N1, D], N1 is H*W, D is the feature dimension
     clip_text_features_normalized = F.normalize(clip_text_features, dim=1) # [N2, D], N2 is the number of scene classes
-    vis_feature_normalized = F.normalize(vis_feature, dim=1) # [N1, D], N1 is 1 or H*W, D is the feature dimension
+    vis_feature_normalized = F.normalize(vis_feature, dim=1) # [N1, D], N1 is num_rays, D is the feature dimension
     # Compute cosine similarity
     relevancy_map = torch.mm(vis_feature_normalized, clip_text_features_normalized.T) # [N1,N2]        
     p_class = F.softmax(relevancy_map, dim=1) # [N1,N2]
     class_index = torch.argmax(p_class, dim=-1) # [N1]
-    pred_index = class_index.reshape(H, W).unsqueeze(0) # [1,H,W]
+    # pred_index = class_index.reshape(H, W).unsqueeze(0) # [1,H,W]
+    pred_index = class_index.unsqueeze(0) # [1,N1]
 
     # Refine SAM2 masks using the predicted class_index  
-    sam_refined_pred = torch.zeros((pred_index.shape[1], pred_index.shape[2]),
-                                   dtype=torch.long).to(device)
+    sam_refined_pred = torch.zeros((pred_index.shape[1]), dtype=torch.long).to(device)
 
     for ann in sam2_masks:
-        cur_mask = ann.squeeze()  # [H, W], current mask for the annotation                  
+        cur_mask = ann.squeeze()  # [num_rays,], current mask for the annotation                  
         sub_mask = pred_index.squeeze().clone()
         sub_mask[~cur_mask] = 0
         # .view(-1) collapses all dimensions into a single dimension, It is equivalent to tensor.reshape(-1).
@@ -1098,44 +1132,6 @@ def compute_SRMR(vis_feature: Tensor, clip_text_features: Tensor, sam2_masks: Te
 
         sam_refined_pred[cur_mask] = most_common_element  
     
-    return sam_refined_pred
-
-
-def compute_SRMR_from_relevancy_map(
-    relevancy_map: Tensor,
-    sam2_masks: Tensor
-) -> Tensor:
-    """
-    Compute the SRMR (Semantic Relevancy Map Regularization) from a given relevancy map and SAM2 masks.
-    :param relevancy_map: A tensor of shape [N1,N2] with the relevancy values for each pixel.
-    :param sam2_masks: SAM2 masks for the image.
-    :return: A tensor of shape (H, W) with the refined relevancy values for each pixel.
-    """
-    H, W = sam2_masks.size(1), sam2_masks.size(2)  # [height, width]
-    device = relevancy_map.device
-    
-    p_class = F.softmax(relevancy_map, dim=1) # [N1,N2]
-    class_index = torch.argmax(p_class, dim=-1) # [N1]
-    pred_index = class_index.reshape(H, W).unsqueeze(0) # [1,H,W]
-
-    # Refine SAM2 masks using the predicted class_index  
-    sam_refined_pred = torch.zeros((pred_index.shape[1], pred_index.shape[2]),
-                                   dtype=torch.long).to(device)
-
-    for ann in sam2_masks:
-        cur_mask = ann.squeeze()  # [H, W], current mask for the annotation                  
-        sub_mask = pred_index.squeeze().clone()
-        sub_mask[~cur_mask] = 0
-        # .view(-1) collapses all dimensions into a single dimension, It is equivalent to tensor.reshape(-1).
-        flat_sub_mask = sub_mask.clone().view(-1)           
-        flat_sub_mask = flat_sub_mask[flat_sub_mask!=0]
-        
-        if len(flat_sub_mask) != 0:                         
-            unique_elements, counts = torch.unique(flat_sub_mask, return_counts=True)  
-            most_common_element = unique_elements[int(counts.argmax().item())]  
-        else:                                               
-            continue 
-
-        sam_refined_pred[cur_mask] = most_common_element  
+    logger.info(f"SRMR: {sam_refined_pred.size()}, {sam_refined_pred.device}")
     
     return sam_refined_pred

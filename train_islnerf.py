@@ -820,7 +820,7 @@ def compute_segmentation_loss(cfg, step, dataset, model, proposal_estimator, pro
         
         # compute instance consistency loss
         if step >= cfg.supervision.segmentation.instance.start_iter:
-            model.ema_update_slownet(model.slow_instance_head, model.fast_instance_head)
+            model.ema_update_slownet()
             instance_loss_dict.update(instance_consistency_loss_fn(
                 segmentation_render_results["instance_embedding"],
                 seg_pixel_data_dict["instance_masks"],

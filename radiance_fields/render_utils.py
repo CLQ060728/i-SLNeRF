@@ -207,7 +207,12 @@ def rendering_rgb(results, weights, static_ratio, static_weights,
 def rendering_segmentation_features(results, weights, static_ratio, static_weights,
                                     dynamic_ratio, dynamic_weights, results_dict, return_decomposition):
     if "static_semantic_embedding" in results and "static_instance_embedding" in results and \
-            "dynamic_semantic_embedding" in results and "dynamic_instance_embedding" in results:
+            "dynamic_semantic_embedding" in results and "dynamic_instance_embedding" in results and \
+                "static_selection_mask" in results and "dynamic_selection_mask" in results:
+        selection_mask = (
+            static_ratio[..., None] * results["static_selection_mask"]
+            + dynamic_ratio[..., None] * results["dynamic_selection_mask"]
+        )
         semantic_embedding = (
             static_ratio[..., None] * results["static_semantic_embedding"]
             + dynamic_ratio[..., None] * results["dynamic_semantic_embedding"]
@@ -215,6 +220,10 @@ def rendering_segmentation_features(results, weights, static_ratio, static_weigh
         instance_embedding = (
             static_ratio[..., None] * results["static_instance_embedding"]
             + dynamic_ratio[..., None] * results["dynamic_instance_embedding"]
+        )
+        results_dict["selection_mask"] = accumulate_along_rays(
+            weights,
+            values=selection_mask
         )
         results_dict["semantic_embedding"] = accumulate_along_rays(
             weights,
@@ -231,6 +240,10 @@ def rendering_segmentation_features(results, weights, static_ratio, static_weigh
                 results["instance_sky_embedding"] * (1.0 - results_dict["opacity"])
         
         if return_decomposition:
+            results_dict["static_selection_mask"] = accumulate_along_rays(
+                static_weights,
+                values=results["static_selection_mask"]
+            )
             results_dict["static_semantic_embedding"] = accumulate_along_rays(
                 static_weights,
                 values=results["static_semantic_embedding"]
@@ -238,6 +251,10 @@ def rendering_segmentation_features(results, weights, static_ratio, static_weigh
             results_dict["static_instance_embedding"] = accumulate_along_rays(
                 static_weights,
                 values=results["static_instance_embedding"]
+            )
+            results_dict["dynamic_selection_mask"] = accumulate_along_rays(
+                dynamic_weights,
+                values=results["dynamic_selection_mask"]
             )
             results_dict["dynamic_semantic_embedding"] = accumulate_along_rays(
                 dynamic_weights,
@@ -253,7 +270,12 @@ def rendering_segmentation_features(results, weights, static_ratio, static_weigh
                 results_dict["static_instance_embedding"] = results_dict["static_instance_embedding"] + \
                     results["instance_sky_embedding"] * (1.0 - results_dict["static_opacity"])
     else:
-        if "semantic_embedding" in results and "instance_embedding" in results:
+        if "semantic_embedding" in results and "instance_embedding" in results and \
+                "selection_mask" in results:
+            results_dict["selection_mask"] = accumulate_along_rays(
+                weights,
+                values=results["selection_mask"]
+            )
             results_dict["semantic_embedding"] = accumulate_along_rays(
                 weights,
                 values=results["semantic_embedding"]
