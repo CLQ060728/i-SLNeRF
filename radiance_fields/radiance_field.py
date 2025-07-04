@@ -68,6 +68,7 @@ class RadianceField(nn.Module):
         self.num_dims = num_dims
         self.density_activation = density_activation
         self.momentum = momentum
+        self.cvs = False  # cross view semantic training
 
         # appearance embedding
         self.enable_cam_embedding = enable_cam_embedding
@@ -575,57 +576,62 @@ class RadianceField(nn.Module):
                 # skip querying other heads
                 return results_dict
 
-            if directions is not None:
-                rgb_results = self.query_rgb(
-                    directions, geo_feats, dynamic_geo_feats, data_dict=data_dict
-                )
-                results_dict["dynamic_rgb"] = rgb_results["dynamic_rgb"]
-                results_dict["static_rgb"] = rgb_results["rgb"]
-                if combine_static_dynamic:
-                    static_ratio = static_density / (density + 1e-6)
-                    dynamic_ratio = dynamic_density / (density + 1e-6)
-                    results_dict["rgb"] = (
-                        static_ratio[..., None] * results_dict["static_rgb"]
-                        + dynamic_ratio[..., None] * results_dict["dynamic_rgb"]
+            if not self.cvs:
+                if directions is not None:
+                    rgb_results = self.query_rgb(
+                        directions, geo_feats, dynamic_geo_feats, data_dict=data_dict
                     )
-            if self.enable_shadow_head:
-                shadow_ratio = self.shadow_head(dynamic_geo_feats)
-                results_dict["shadow_ratio"] = shadow_ratio
-                if combine_static_dynamic and "rgb" in results_dict:
-                    results_dict["rgb"] = (
-                        static_ratio[..., None]
-                        * results_dict["rgb"]
-                        * (1 - shadow_ratio)
-                        + dynamic_ratio[..., None] * results_dict["dynamic_rgb"]
-                    )
+                    results_dict["dynamic_rgb"] = rgb_results["dynamic_rgb"]
+                    results_dict["static_rgb"] = rgb_results["rgb"]
+                    if combine_static_dynamic:
+                        static_ratio = static_density / (density + 1e-6)
+                        dynamic_ratio = dynamic_density / (density + 1e-6)
+                        results_dict["rgb"] = (
+                            static_ratio[..., None] * results_dict["static_rgb"]
+                            + dynamic_ratio[..., None] * results_dict["dynamic_rgb"]
+                        )
+                if self.enable_shadow_head:
+                    shadow_ratio = self.shadow_head(dynamic_geo_feats)
+                    results_dict["shadow_ratio"] = shadow_ratio
+                    if combine_static_dynamic and "rgb" in results_dict:
+                        results_dict["rgb"] = (
+                            static_ratio[..., None]
+                            * results_dict["rgb"]
+                            * (1 - shadow_ratio)
+                            + dynamic_ratio[..., None] * results_dict["dynamic_rgb"]
+                        )
         else:
             # if no dynamic branch, use static density
             results_dict["density"] = static_density
             if return_density_only:
                 # skip querying other heads
                 return results_dict
-            if directions is not None:
-                rgb_results = self.query_rgb(directions, geo_feats, data_dict=data_dict)
-                results_dict["rgb"] = rgb_results["rgb"]
+            if not self.cvs:
+                if directions is not None:
+                    rgb_results = self.query_rgb(directions, geo_feats, data_dict=data_dict)
+                    results_dict["rgb"] = rgb_results["rgb"]
 
         if self.enable_segmentation_head:
             if self.split_semantic_instance:
                 # split semantic and instance branches
-                selection_feats = self.selection_head(semantic_feats)
-                logger.info(f"Selection features shape: {selection_feats.size()}")
-                selection_mask = F.softmax(selection_feats, dim=-2)
+                if not self.cvs:
+                    selection_feats = self.selection_head(semantic_feats)
+                    logger.info(f"Selection features shape: {selection_feats.size()}")
+                    selection_mask = F.softmax(selection_feats, dim=-2)
                 semantic_embedding = self.semantic_head(semantic_feats)
                 semantic_embedding = F.normalize(semantic_embedding, dim=-1)
-                fast_instance_embedding = self.fast_instance_head(instance_feats)
-                slow_instance_embedding = self.slow_instance_head(instance_feats)
-                fast_instance_embedding = F.normalize(fast_instance_embedding, dim=-1)
-                slow_instance_embedding = F.normalize(slow_instance_embedding, dim=-1)
-                instance_embedding = torch.cat([fast_instance_embedding, slow_instance_embedding], dim=-1)
+                if not self.cvs:
+                    fast_instance_embedding = self.fast_instance_head(instance_feats)
+                    slow_instance_embedding = self.slow_instance_head(instance_feats)
+                    fast_instance_embedding = F.normalize(fast_instance_embedding, dim=-1)
+                    slow_instance_embedding = F.normalize(slow_instance_embedding, dim=-1)
+                    instance_embedding = torch.cat([fast_instance_embedding, slow_instance_embedding], dim=-1)
             else:
                 # shared branch for semantic and instance
-                selection_feats = self.selection_head(segmentation_feats)
-                logger.info(f"Selection features shape: {selection_feats.size()}")
-                selection_mask = F.softmax(selection_feats, dim=-2)
+                if not self.cvs:
+                    selection_feats = self.selection_head(segmentation_feats)
+                    logger.info(f"Selection features shape: {selection_feats.size()}")
+                    selection_mask = F.softmax(selection_feats, dim=-2)
                 fast_instance_embedding = self.fast_instance_head(segmentation_feats)
                 slow_instance_embedding = self.slow_instance_head(segmentation_feats)
                 instance_embedding = torch.cat([fast_instance_embedding, slow_instance_embedding], dim=-1)
@@ -637,22 +643,25 @@ class RadianceField(nn.Module):
             
             if self.dynamic_xyz_encoder is not None and has_timestamps:
                 if self.split_semantic_instance:
-                    dynamic_selection_feats = self.selection_head(dynamic_semantic_feats)
-                    logger.info(f"Dynamic selection features shape: {dynamic_selection_feats.size()}")
-                    dynamic_selection_mask = F.softmax(dynamic_selection_feats, dim=-2)
+                    if not self.cvs:
+                        dynamic_selection_feats = self.selection_head(dynamic_semantic_feats)
+                        logger.info(f"Dynamic selection features shape: {dynamic_selection_feats.size()}")
+                        dynamic_selection_mask = F.softmax(dynamic_selection_feats, dim=-2)
                     dynamic_semantic_embedding = self.semantic_head(dynamic_semantic_feats)
                     dynamic_semantic_embedding = F.normalize(dynamic_semantic_embedding, dim=-1)
-                    dynamic_fast_instance_embedding = self.fast_instance_head(dynamic_instance_feats)
-                    dynamic_slow_instance_embedding = self.slow_instance_head(dynamic_instance_feats)
-                    dynamic_fast_instance_embedding = F.normalize(dynamic_fast_instance_embedding, dim=-1)
-                    dynamic_slow_instance_embedding = F.normalize(dynamic_slow_instance_embedding, dim=-1)
-                    dynamic_instance_embedding = torch.cat(
-                        [dynamic_fast_instance_embedding, dynamic_slow_instance_embedding], dim=-1
-                    )
+                    if not self.cvs:
+                        dynamic_fast_instance_embedding = self.fast_instance_head(dynamic_instance_feats)
+                        dynamic_slow_instance_embedding = self.slow_instance_head(dynamic_instance_feats)
+                        dynamic_fast_instance_embedding = F.normalize(dynamic_fast_instance_embedding, dim=-1)
+                        dynamic_slow_instance_embedding = F.normalize(dynamic_slow_instance_embedding, dim=-1)
+                        dynamic_instance_embedding = torch.cat(
+                            [dynamic_fast_instance_embedding, dynamic_slow_instance_embedding], dim=-1
+                        )
                 else:
-                    dynamic_selection_feats = self.selection_head(dynamic_segmentation_feats)
-                    logger.info(f"Dynamic selection features shape: {dynamic_selection_feats.size()}")
-                    dynamic_selection_mask = F.softmax(dynamic_selection_feats, dim=-2)
+                    if not self.cvs:
+                        dynamic_selection_feats = self.selection_head(dynamic_segmentation_feats)
+                        logger.info(f"Dynamic selection features shape: {dynamic_selection_feats.size()}")
+                        dynamic_selection_mask = F.softmax(dynamic_selection_feats, dim=-2)
                     dynamic_fast_instance_embedding = self.fast_instance_head(dynamic_segmentation_feats)
                     dynamic_slow_instance_embedding = self.slow_instance_head(dynamic_segmentation_feats)
                     dynamic_instance_embedding = torch.cat(
@@ -665,32 +674,35 @@ class RadianceField(nn.Module):
                     dynamic_instance_embedding = torch.cat(
                         [dynamic_fast_instance_embedding, dynamic_slow_instance_embedding], dim=-1
                     )
-                
-                results_dict["static_selection_mask"] = selection_mask
-                results_dict["static_semantic_embedding"] = semantic_embedding
-                results_dict["static_instance_embedding"] = instance_embedding
-                results_dict["dynamic_selection_mask"] = dynamic_selection_mask
+                if not self.cvs:
+                    results_dict["static_selection_mask"] = selection_mask
+                    results_dict["dynamic_selection_mask"] = dynamic_selection_mask
+                    results_dict["static_instance_embedding"] = instance_embedding
+                    results_dict["dynamic_instance_embedding"] = dynamic_instance_embedding
+                results_dict["static_semantic_embedding"] = semantic_embedding             
                 results_dict["dynamic_semantic_embedding"] = dynamic_semantic_embedding
-                results_dict["dynamic_instance_embedding"] = dynamic_instance_embedding
+                
                 if combine_static_dynamic:
                     static_ratio = static_density / (density + 1e-6)
                     dynamic_ratio = dynamic_density / (density + 1e-6)
-                    results_dict["selection_mask"] = (
-                        static_ratio[..., None] * selection_mask
-                        + dynamic_ratio[..., None] * dynamic_selection_mask
-                    )
+                    if not self.cvs:
+                        results_dict["selection_mask"] = (
+                            static_ratio[..., None] * selection_mask
+                            + dynamic_ratio[..., None] * dynamic_selection_mask
+                        )
+                        results_dict["instance_embedding"] = (
+                            static_ratio[..., None] * instance_embedding
+                            + dynamic_ratio[..., None] * dynamic_instance_embedding
+                        )
                     results_dict["semantic_embedding"] = (
                         static_ratio[..., None] * semantic_embedding
                         + dynamic_ratio[..., None] * dynamic_semantic_embedding
                     )
-                    results_dict["instance_embedding"] = (
-                        static_ratio[..., None] * instance_embedding
-                        + dynamic_ratio[..., None] * dynamic_instance_embedding
-                    )
             else:
-                results_dict["selection_mask"] = selection_mask
+                if not self.cvs:
+                    results_dict["selection_mask"] = selection_mask
+                    results_dict["instance_embedding"] = instance_embedding
                 results_dict["semantic_embedding"] = semantic_embedding
-                results_dict["instance_embedding"] = instance_embedding
                 
         # query sky if not in lidar mode
         if (

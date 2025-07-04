@@ -35,9 +35,14 @@ class SplitWrapper(torch.utils.data.Dataset):
                 num_rays=self.ray_batch_size,
                 candidate_indices=self.split_indices,
             )
-        else:
+        elif self.split == "test":
             # return all rays for the given index
             return self.datasource.get_render_rays(self.split_indices[idx])
+        else:
+            return self.datasource.get_semantic_rays(
+                num_rays=self.ray_batch_size,
+                candidate_indices=self.split_indices,
+            )
 
     def __len__(self) -> int:
         if self.split == "train":

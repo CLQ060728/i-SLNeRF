@@ -412,14 +412,16 @@ class WaymoDataset(SceneDataset):
 
         # ---- create split wrappers ---- #
         pixel_sets, lidar_sets = self.build_split_wrapper()
-        self.train_pixel_set, self.test_pixel_set, self.full_pixel_set = pixel_sets
+        self.train_pixel_set, self.novel_pixel_set, self.novel_train_set, \
+            self.test_pixel_set, self.full_pixel_set = pixel_sets
         self.train_lidar_set, self.test_lidar_set, self.full_lidar_set = lidar_sets
 
     def build_split_wrapper(self):
         """
         Makes each data source as a Pytorch Dataset
         """
-        train_pixel_set, test_pixel_set, full_pixel_set = None, None, None
+        train_pixel_set, novel_pixel_set, novel_train_set,\
+            test_pixel_set, full_pixel_set = None, None, None, None, None
         train_lidar_set, test_lidar_set, full_lidar_set = None, None, None
 
         if self.pixel_source is not None:
@@ -440,11 +442,57 @@ class WaymoDataset(SceneDataset):
             if len(self.test_indices) > 0:
                 test_pixel_set = SplitWrapper(
                     datasource=self.pixel_source,
-                    # test_indices are img indices, so the length is num_cams * num_test_timesteps
+                    # test_indices are img indices
                     split_indices=self.test_indices,
                     split="test",
                     ray_batch_size=self.data_cfg.ray_batch_size,
                 )
+                novel_pixel_set = SplitWrapper(
+                    datasource=self.pixel_source,
+                    # novel indices are img indices
+                    split_indices=self.test_indices,
+                    split="novel",
+                    ray_batch_size=self.data_cfg.ray_batch_size
+                )
+                novel_train_set = SplitWrapper(
+                    datasource=self.pixel_source,
+                    # novel train indices are img indices
+                    split_indices=self.train_indices,
+                    split="novel",
+                    ray_batch_size=self.data_cfg.ray_batch_size
+                )
+                self.novel_pixel_indices = self.test_indices
+                self.novel_train_indices = self.train_indices
+            else:
+                num_novel_indices = int(0.1 * len(self.train_indices))
+                random_indices = torch.randint(
+                    0,
+                    len(self.train_indices),
+                    size=(num_novel_indices,),
+                    device=self.device,
+                )
+                random_novel_indices = self.train_indices[random_indices]
+                novel_pixel_set = SplitWrapper(
+                    datasource=self.pixel_source,
+                    # novel indices are img indices
+                    split_indices=random_novel_indices,
+                    split="novel",
+                    ray_batch_size=self.data_cfg.ray_batch_size
+                )
+                random_train_indices = []
+                for train_idx in self.train_indices:
+                    if train_idx not in random_novel_indices:
+                        random_train_indices.append(train_idx)
+                novel_train_set = SplitWrapper(
+                    datasource=self.pixel_source,
+                    # novel train indices are img indices
+                    split_indices=random_train_indices,
+                    split="novel",
+                    ray_batch_size=self.data_cfg.ray_batch_size
+                )
+                self.novel_pixel_indices = random_novel_indices
+                self.novel_train_indices = random_train_indices
+
         if self.lidar_source is not None:
             train_lidar_set = SplitWrapper(
                 datasource=self.lidar_source,
@@ -468,7 +516,8 @@ class WaymoDataset(SceneDataset):
                     split="test",
                     ray_batch_size=self.data_cfg.ray_batch_size,
                 )
-        pixel_set = (train_pixel_set, test_pixel_set, full_pixel_set)
+        
+        pixel_set = (train_pixel_set, novel_pixel_set, novel_train_set, test_pixel_set, full_pixel_set)
         lidar_set = (train_lidar_set, test_lidar_set, full_lidar_set)
         return pixel_set, lidar_set
 

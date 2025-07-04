@@ -364,6 +364,8 @@ def render_rays(
         num_rays, _ = rays_shape
         reshaped_data_dict = data_dict.copy()
 
+    radiance_field.cvs = False
+
     def prop_sigma_fn(t_starts, t_ends, proposal_network):
         # query propsal networks for density
         t_origins = chunk_data_dict[prefix + "origins"][..., None, :]
@@ -441,3 +443,186 @@ def render_rays(
     render_results["extras"] = extras
     
     return render_results
+
+
+######## for the cross view semantic training ########
+def render_semantic_rays(
+    # scene
+    radiance_field: RadianceField = None,
+    proposal_estimator: PropNetEstimator = None,
+    proposal_networks: Optional[List[DensityField]] = None,
+    data_dict: Dict[str, Tensor] = None,
+    cfg: OmegaConf = None,
+    proposal_requires_grad: bool = False,
+    return_decomposition: bool = False,
+    prefix="",
+) -> Dict[str, Tensor]:
+    """Render some attributes of the scene along the rays."""
+    # reshape data_dict to be (num_rays, ...)
+    rays_shape = data_dict[prefix + "origins"].shape
+    if len(rays_shape) == 3:
+        height, width, _ = rays_shape
+        num_rays = height * width
+        reshaped_data_dict = {}
+        for k, v in data_dict.items():
+            reshaped_data_dict[k] = v.reshape(num_rays, -1).squeeze()
+    else:
+        num_rays, _ = rays_shape
+        reshaped_data_dict = data_dict.copy()
+    
+    radiance_field.cvs = True
+
+    def prop_sigma_fn(t_starts, t_ends, proposal_network):
+        # query propsal networks for density
+        t_origins = chunk_data_dict[prefix + "origins"][..., None, :]
+        t_dirs = chunk_data_dict[prefix + "viewdirs"][..., None, :]
+        positions = t_origins + t_dirs * (t_starts + t_ends)[..., None] / 2.0
+        sub_dict = {
+            k: v[..., None].repeat_interleave(t_starts.shape[-1], dim=-1)
+            for k, v in chunk_data_dict.items()
+            if "time" in k
+        }
+        return proposal_network(positions, sub_dict)
+
+    def query_fn(t_starts, t_ends):
+        # query the final nerf model for density and other information along the rays
+        t_origins = chunk_data_dict[prefix + "origins"][..., None, :]
+        t_dirs = chunk_data_dict[prefix + "viewdirs"][..., None, :].repeat_interleave(
+            t_starts.shape[-1], dim=-2
+        )
+        sub_dict = {
+            k: v[..., None].repeat_interleave(t_starts.shape[-1], dim=-1)
+            for k, v in chunk_data_dict.items()
+            if k not in [prefix + "viewdirs", prefix + "origins", "pixel_coords"]
+        }
+        sub_dict["t_starts"], sub_dict["t_ends"] = t_starts, t_ends
+        if "pixel_coords" in chunk_data_dict:
+            # use this for positional embedding decomposition
+            sub_dict["pixel_coords"] = chunk_data_dict["pixel_coords"]
+        positions = t_origins + t_dirs * (t_starts + t_ends)[..., None] / 2.0
+        # return density only when rendering lidar, i.e., no rgb or sky or features are rendered
+        results_dict: Dict[str, Tensor] = radiance_field(
+            positions, t_dirs, sub_dict, return_density_only=(prefix == "lidar_")
+        )
+        results_dict["density"] = results_dict["density"].squeeze(-1)
+        return results_dict
+
+    results = []
+    chunk = 2**24 if radiance_field.training else cfg.render.render_chunk_size
+    for i in range(0, num_rays, chunk):
+        chunk_data_dict = {k: v[i : i + chunk] for k, v in reshaped_data_dict.items()}
+        assert proposal_networks is not None, "proposal_networks is required."
+        # obtain proposed intervals
+        t_starts, t_ends = proposal_estimator.sampling(
+            prop_sigma_fns=[
+                lambda *args: prop_sigma_fn(*args, p) for p in proposal_networks
+            ],
+            num_samples=cfg.nerf.sampling.num_samples,
+            prop_samples=cfg.nerf.propnet.num_samples_per_prop,
+            n_rays=chunk_data_dict[prefix + "origins"].shape[0],
+            near_plane=cfg.nerf.propnet.near_plane,
+            far_plane=cfg.nerf.propnet.far_plane,
+            sampling_type=cfg.nerf.propnet.sampling_type,
+            stratified=radiance_field.training,
+            requires_grad=proposal_requires_grad,
+        )
+        # render the scene
+        chunk_results_dict = rendering_semantic(
+            t_starts,
+            t_ends,
+            query_fn=query_fn,
+            return_decomposition=return_decomposition,
+        )
+        extras = chunk_results_dict.pop("extras")
+        results.append(chunk_results_dict)
+    render_results = collate(
+        results,
+        collate_fn_map={
+            **default_collate_fn_map,
+            Tensor: lambda x, **_: torch.cat(x, 0),
+        },
+    )
+    extras["density"] = render_results.pop("density")
+    for k, v in render_results.items():
+        # recover the original shape
+        render_results[k] = v.reshape(list(rays_shape[:-1]) + list(v.shape[1:]))
+    render_results["extras"] = extras
+    
+    return render_results
+
+
+def rendering_semantic(
+    t_starts: Tensor,
+    t_ends: Tensor,
+    query_fn: Optional[Callable] = None,
+    return_decomposition: bool = False,
+) -> Dict[str, Tensor]:
+    """
+    Renders the scene given the start and end points of the rays, and a query function to retrieve information about the scene along the rays.
+    Args:
+        t_starts (Tensor): The start points of the rays.
+        t_ends (Tensor): The end points of the rays.
+        query_fn (Optional[Callable], optional):
+            A function that takes in the start and end points of the rays and
+            returns a dictionary of information about the scene along the rays.
+        return_decomposition (bool, optional):
+            Whether to return the decomposition of the scene into static and dynamic components.
+            Defaults to False.
+
+    Returns:
+        Dict[str, Tensor]: A dictionary of rendered information about the scene, including density, depth, opacity, rgb values, and more.
+    """
+    # query the scene for density and other information along the rays
+    results = query_fn(t_starts, t_ends)
+
+    # calculate transmittance and alpha values for each point along the rays
+    trans, alphas = render_transmittance_from_density(
+        t_starts, t_ends, results["density"].squeeze(-1)
+    )
+    # Calculate weights for each point along the rays based on the transmittance and alpha values
+    weights = trans * alphas
+
+    # =============== Geometry ================ #
+    static_ratio, static_weights, dynamic_ratio, dynamic_weights, extras, results_dict = \
+        rendering_geometry(weights, trans, t_starts, t_ends, results, return_decomposition)
+
+    # # =========== RGB =========== #
+    # rendering_rgb(results, weights, static_ratio, static_weights,
+    #               dynamic_ratio, dynamic_weights, results_dict, return_decomposition)
+
+    # =========== Segmentation Features =========== #
+    rendering_semantic_features(results, weights, static_ratio, static_weights,
+                                dynamic_ratio, dynamic_weights, results_dict, return_decomposition)
+
+    # also return "extras" for some supervision
+    results_dict["extras"] = extras
+
+    return results_dict
+
+
+def rendering_semantic_features(results, weights, static_ratio, static_weights,
+                                dynamic_ratio, dynamic_weights, results_dict, return_decomposition):
+    if "static_semantic_embedding" in results and "dynamic_semantic_embedding" in results:
+        semantic_embedding = (
+            static_ratio[..., None] * results["static_semantic_embedding"]
+            + dynamic_ratio[..., None] * results["dynamic_semantic_embedding"]
+        )
+        results_dict["semantic_embedding"] = accumulate_along_rays(
+            weights,
+            values=semantic_embedding
+        )
+        if return_decomposition:
+            results_dict["static_semantic_embedding"] = accumulate_along_rays(
+                static_weights,
+                values=results["static_semantic_embedding"]
+            )
+            results_dict["dynamic_semantic_embedding"] = accumulate_along_rays(
+                dynamic_weights,
+                values=results["dynamic_semantic_embedding"]
+            )
+    else:
+        if "semantic_embedding" in results:
+            results_dict["semantic_embedding"] = accumulate_along_rays(
+                weights,
+                values=results["semantic_embedding"]
+            )
