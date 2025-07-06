@@ -467,7 +467,356 @@ def compute_line_of_sight_loss(
     return sight_loss * depth_mask
 
 
-class Instance_Consistency_Loss(Loss):
+class VisionDepthLoss(Loss):
+    """
+    Class for computing vision depth loss.
+
+    Args:
+        loss_type (Literal["l1", "l2", "smooth_l1"]): Type of loss to use.
+        name (str): Name of the loss.
+        coef (float): Coefficient to multiply the loss by.
+        max_depth (float): truncation value for the depth values.
+        reduction (str): Reduction method for the loss.
+        check_nan (bool): Whether to check for NaN values in the loss.
+    """
+
+    def __init__(
+        self,
+        loss_type: Literal[
+            "l1",
+            "l2",
+            "smooth_l1",
+        ] = "l2",
+        name: str = "vision_depth_loss",
+        coef: float = 1.0,
+        reduction="mean",
+        max_depth: float = 1000,
+        check_nan=False
+    ):
+        super(VisionDepthLoss, self).__init__(coef, check_nan, reduction)
+        self.loss_type = loss_type
+        self.name = f"{name}_{self.loss_type}"
+        self.max_depth = max_depth
+
+    def _compute_depth_loss(
+        self,
+        pred_depth: Tensor,
+        gt_depth: Tensor
+    ):
+        pred_depth = pred_depth.squeeze()
+        gt_depth = gt_depth.squeeze()
+        valid_mask = (gt_depth > 0.0) & (gt_depth <= self.max_depth)
+        pred_depth = normalize_depth(pred_depth[valid_mask], max_depth=self.max_depth)
+        gt_depth = normalize_depth(gt_depth[valid_mask], max_depth=self.max_depth)
+
+        if self.loss_type == "smooth_l1":
+            return F.smooth_l1_loss(pred_depth, gt_depth, reduction="none")
+        elif self.loss_type == "l1":
+            return F.l1_loss(pred_depth, gt_depth, reduction="none")
+        elif self.loss_type == "l2":
+            return F.mse_loss(pred_depth, gt_depth, reduction="none")
+        else:
+            raise NotImplementedError(f"Unknown loss type: {self.loss_type}")
+
+    def __call__(
+        self,
+        pred_depth: Tensor,
+        gt_depth: Tensor,
+        name: str = None,
+    ):
+        depth_error = self._compute_depth_loss(pred_depth, gt_depth)
+        
+        name = self.name if name is None else name
+
+        return self.return_loss(name, depth_error)
+
+
+class FeatureLoss(Loss):
+    """
+    A class representing the semantic feature loss function.
+
+    Args:
+        name (str): The name of the loss function.
+        coef (float): The coefficient to multiply the loss by.
+        reduction (str): The reduction method to use for the loss.
+        check_nan (bool): Whether to check for NaN values in the loss.
+
+    Attributes:
+        name (str): The name of the loss function.
+    """
+
+    def __init__(
+        self,
+        name: str = "feature",
+        coef: float = 1.0,
+        reduction="none",
+        check_nan=False
+    ):
+        super(FeatureLoss, self).__init__(coef, check_nan, reduction)
+        self.name = f"{name}_loss"
+
+    def __call__(
+        self,
+        semantic_feat: Tensor,
+        selected_clip_vis_feat: Tensor,
+        name: str = None,
+    ):
+        """
+        Computes the cosine loss.
+
+        Args:
+            semantic_feat (Tensor): The rendered semantic features.
+            selected_clip_vis_feat (Tensor): The selected scaled CLIP pixel features.
+            name (str): The name of the loss function.
+
+        Returns:
+            dict: A dictionary containing the loss value.
+        """
+        loss = 1 - F.cosine_similarity(semantic_feat, selected_clip_vis_feat, dim=1).mean()
+        
+        name = self.name if name is None else name
+        
+        return self.return_loss(name, loss)
+
+
+class FDALoss(Loss):
+    """
+    A class representing a feature distribution alignment loss function.
+
+    Args:
+        name (str): The name of the loss function.
+        dino_shift (float): The DINO feature similarity threshold.
+        coef (float): The coefficient to multiply the loss by.
+        reduction (str): The reduction method to use for the loss.
+        check_nan (bool): Whether to check for NaN values in the loss.
+    """
+
+    def __init__(
+        self,
+        name: str = "fda",
+        dino_shift: float = 0.7,  # dino_shift = 0.7
+        coef: float = 1.0,
+        reduction="none",
+        check_nan=False
+    ):
+        super(FDALoss, self).__init__(coef, check_nan, reduction)
+        self.name = f"{name}_loss"
+        self.dino_shift = dino_shift
+
+    def tensor_correlation(self, a, b):
+        return torch.einsum("nsc,nlc->nsl", F.normalize(a, dim=-1), F.normalize(b, dim=-1))
+
+    def l1_correlation(self, a, b):
+        '''
+        not in log space!!!
+        a, b: [N,HW,C]
+        '''
+        a = a.unsqueeze(2) # [N, HW, 1, C]
+        b = b.unsqueeze(1) # [N, 1, HW, C]
+        l1_corr = torch.abs(a-b).sum(dim=-1) # [N,HW,HW]
+
+        return l1_corr
+
+    def js_correlation(self, a, b):
+        '''
+        note that the input probabilities are already in log space
+        a, b: [N,HW,C]
+        '''
+        m = torch.log((a.exp() + b.exp()) / 2.) # [N,HW,C]
+        m = m.unsqueeze(1) # [N,1,HW,C]
+        # KL(a||m), a is the true distribution
+        a = a.unsqueeze(2) # [N,HW,1,C]
+        kl_pointwise_am = a.exp() * (a-m) # [N,HW,HW,C]
+        kl_am = kl_pointwise_am.sum(dim=-1) # [N,HW,HW]
+        # KL(b||m), b is the true distribution
+        b = b.unsqueeze(2)
+        kl_pointwise_bm = b.exp() * (b-m)
+        kl_bm = kl_pointwise_bm.sum(dim=-1)
+        
+        return (kl_am + kl_bm) / 2.
+
+    def get_correlation_loss(self,
+                feats: torch.Tensor,
+                p_class: torch.Tensor,
+    ):
+        '''
+        feats: [N,H,W,C]
+        p_class: [N,H,W,N_class]
+        '''
+        feats = feats.reshape(feats.size(0), -1, feats.size(-1))
+        p_class = p_class.reshape(p_class.size(0), -1, p_class.size(-1))  # h,w 2D => 1D，facilates subcequent pointwise similarity calculations
+
+        with torch.no_grad():
+            # get dino feature correlation
+            f_corr = self.tensor_correlation(feats, feats) - self.dino_shift
+            f_corr_pos = f_corr.clamp(min=0)
+            f_corr_neg = f_corr.clamp(max=0)
+
+        p_corr = self.js_correlation(p_class, p_class)
+
+        return  (f_corr_pos * p_corr).sum() / torch.count_nonzero(f_corr_pos), \
+                (f_corr_neg * p_corr).sum() / torch.count_nonzero(f_corr_neg)
+
+    def __call__(self, dino_feature_map, log_p_class, dino_pos_weight, dino_neg_weight,
+                 name: str = None):
+        """
+        Computes the feature distribution alignment loss.
+
+        Args:
+            dino_feature_map (Tensor): The DINO feature map.
+            log_p_class (Tensor): The relevance map in logarithm space.
+            dino_pos_weight (float): The weight for the positive correlation.
+            dino_neg_weight (float): The weight for the negative correlation.
+            name (str): The name of the loss function.
+        Returns:
+            dict: A dictionary containing the loss value.
+        """
+        pos_loss, neg_loss = self.get_correlation_loss(dino_feature_map, log_p_class)
+        pos_loss = pos_loss * dino_pos_weight if dino_pos_weight != 0 else 0
+        neg_loss = neg_loss * dino_neg_weight if dino_neg_weight != 0 else 0
+        loss = pos_loss + neg_loss
+
+        name = self.name if name is None else name
+
+        return self.return_loss(name, loss)
+
+
+class SRMRLoss(Loss):
+    """
+    The Semantic Relevancy Map Regularization Loss.
+
+    Args:
+        name (str): The name of the loss function.
+        coef (float): The coefficient to multiply the loss by.
+        reduction (str): The reduction method to use for the loss.
+        check_nan (bool): Whether to check for NaN values in the loss.
+
+    """
+
+    def __init__(
+        self,
+        name: str = "srmr",
+        coef: float = 1.0,
+        reduction="mean",
+        check_nan=False
+    ):
+        super(SRMRLoss, self).__init__(coef, check_nan, reduction)
+        self.name = f"{name}_loss"
+        self.loss_fn = F.cross_entropy
+
+    def __call__(
+        self,
+        relevancy_map: Tensor,
+        srmr_mask: Tensor,
+        name: str = None,
+    ):
+        """
+        Computes the srmr loss.
+
+        Args:
+            relevancy_map (Tensor): The relevancy map for the rendered semantic features.
+            srmr_mask (Tensor): The semantically refined relevancy mask.
+            name (str): The name of the loss function.
+
+        Returns:
+            dict: A dictionary containing the loss value.
+        """
+        loss = self.loss_fn(relevancy_map, srmr_mask, reduction="none")
+        
+        name = self.name if name is None else name
+        
+        return self.return_loss(name, loss)
+
+
+class CVSCLoss(Loss):
+    """
+    A class representing a Cross View Semantic Consistency Loss function.
+
+    Args:
+        name (str): The name of the loss function.
+        coef (float): The coefficient to multiply the loss by.
+        reduction (str): The reduction method to use for the loss.
+        check_nan (bool): Whether to check for NaN values in the loss.
+    """
+
+    def __init__(
+        self,
+        name: str = "cvsc",
+        coef: float = 1.0,
+        reduction="none",
+        check_nan=False
+    ):
+        super(CVSCLoss, self).__init__(coef, check_nan, reduction)
+        self.name = f"{name}_loss"
+    
+    def get_srmat_loss(
+        self,
+        relevancy_map_train: Tensor,
+        srmr_mask_train: Tensor
+    ):
+        """
+        method to compute the Semantic Relevancy Map Approximation loss for training views.
+        
+        Args:
+            relevancy_map_train (Tensor): The rendered relevancy map with clip text features for training views.
+            srmr_mask_train (Tensor): The semantically refined relevancy map for training views.
+        
+        Returns:
+            Tensor: The computed srmat loss value.
+        """
+        loss = F.cross_entropy(relevancy_map_train, srmr_mask_train, reduction="none")
+        
+        return loss.mean()
+
+    def get_srman_loss(
+        self,
+        relevancy_map_pixel: Tensor,
+        srmr_mask_pixel: Tensor
+    ):
+        """
+        method to compute the Semantic Relevancy Map Approximation loss for novel views
+        
+        Args:
+            relevancy_map_pixel (Tensor): The rendered relevancy map with clip text features for novel views.
+            srmr_mask_pixel (Tensor): The semantically refined relevancy map for novel views.
+
+        Returns:
+            Tensor: The computed srman loss value.
+        """
+        loss = F.cross_entropy(relevancy_map_pixel, srmr_mask_pixel, reduction="none")
+        
+        return loss.mean()
+
+    def __call__(
+        self,
+        relevancy_map_train: Tensor,
+        relevancy_map_pixel: Tensor,
+        srmr_mask_train: Tensor,
+        srmr_mask_pixel: Tensor,
+        name: str = None
+    ):
+        """
+        Computes the cross view semantic consistency loss.
+
+        Args:
+            relevancy_map_train (Tensor): The rendered relevancy map with clip text features for training views.
+            relevancy_map_pixel (Tensor): The rendered relevancy map with clip text features for novel views.
+            srmr_mask_train (Tensor): The semantically refined relevancy map for training views.
+            srmr_mask_pixel (Tensor): The semantically refined relevancy map for novel views.
+            name (str): The name of the loss function.
+        
+        Returns:
+            dict: A dictionary containing the loss value.
+        """
+        loss = self.get_srmat_loss(relevancy_map_train, srmr_mask_train) + \
+               self.get_srman_loss(relevancy_map_pixel, srmr_mask_pixel)
+
+        name = self.name if name is None else name
+
+        return self.return_loss(name, loss)
+
+
+class InstanceConsistencyLoss(Loss):
     """
     A class representing an instance consistency loss function.
 
@@ -485,7 +834,7 @@ class Instance_Consistency_Loss(Loss):
         reduction="none",
         check_nan=False,
     ):
-        super(Instance_Consistency_Loss, self).__init__(coef, check_nan, reduction)
+        super(InstanceConsistencyLoss, self).__init__(coef, check_nan, reduction)
         self.name = f"{name}_loss"
     
     def __call__(
@@ -558,119 +907,3 @@ class Instance_Consistency_Loss(Loss):
         name = self.name if name is None else name
 
         return self.return_loss(name, loss)
-
-
-class Semantic_Classification_Loss(Loss):
-    """
-    A class representing a semantic classification loss function.
-
-    Args:
-        name (str): The name of the loss function.
-        coef (float): The coefficient to multiply the loss by.
-        reduction (str): The reduction method to use for the loss.
-        check_nan (bool): Whether to check for NaN values in the loss.
-
-    """
-
-    def __init__(
-        self,
-        name: str = "semantic_classification",
-        coef: float = 1.0,
-        reduction="mean",
-        check_nan=False
-    ):
-        super(Semantic_Classification_Loss, self).__init__(coef, check_nan, reduction)
-        self.name = f"{name}_loss"
-        self.loss_fn = F.cross_entropy
-
-    def __call__(
-        self,
-        predicted: Tensor,
-        gt: Tensor,
-        mask: Tensor = None,
-        name: str = None,
-    ):
-        """
-        Computes the semantic classification loss.
-
-        Args:
-            predicted (Tensor): The predicted values.
-            gt (Tensor): The ground truth values.
-            mask (Tensor): The mask to apply to the loss.
-            name (str): The name of the loss function.
-
-        Returns:
-            dict: A dictionary containing the loss value.
-        """
-        loss = self.loss_fn(predicted, gt, reduction="none")
-
-        if mask is not None:
-            loss = loss * mask.squeeze()
-        
-        name = self.name if name is None else name
-        
-        return self.return_loss(name, loss)
-
-
-class VisionDepthLoss(Loss):
-    """
-    Class for computing vision depth loss.
-
-    Args:
-        loss_type (Literal["l1", "l2", "smooth_l1"]): Type of loss to use.
-        name (str): Name of the loss.
-        coef (float): Coefficient to multiply the loss by.
-        max_depth (float): truncation value for the depth values.
-        reduction (str): Reduction method for the loss.
-        check_nan (bool): Whether to check for NaN values in the loss.
-    """
-
-    def __init__(
-        self,
-        loss_type: Literal[
-            "l1",
-            "l2",
-            "smooth_l1",
-        ] = "l2",
-        name: str = "vision_depth_loss",
-        coef: float = 1.0,
-        reduction="mean",
-        max_depth: float = 1000,
-        check_nan=False
-    ):
-        super(VisionDepthLoss, self).__init__(coef, check_nan, reduction)
-        self.loss_type = loss_type
-        self.name = f"{name}_{self.loss_type}"
-        self.max_depth = max_depth
-
-    def _compute_depth_loss(
-        self,
-        pred_depth: Tensor,
-        gt_depth: Tensor
-    ):
-        pred_depth = pred_depth.squeeze()
-        gt_depth = gt_depth.squeeze()
-        valid_mask = (gt_depth > 0.0) & (gt_depth <= self.max_depth)
-        pred_depth = normalize_depth(pred_depth[valid_mask], max_depth=self.max_depth)
-        gt_depth = normalize_depth(gt_depth[valid_mask], max_depth=self.max_depth)
-
-        if self.loss_type == "smooth_l1":
-            return F.smooth_l1_loss(pred_depth, gt_depth, reduction="none")
-        elif self.loss_type == "l1":
-            return F.l1_loss(pred_depth, gt_depth, reduction="none")
-        elif self.loss_type == "l2":
-            return F.mse_loss(pred_depth, gt_depth, reduction="none")
-        else:
-            raise NotImplementedError(f"Unknown loss type: {self.loss_type}")
-
-    def __call__(
-        self,
-        pred_depth: Tensor,
-        gt_depth: Tensor,
-        name: str = None,
-    ):
-        depth_error = self._compute_depth_loss(pred_depth, gt_depth)
-        
-        name = self.name if name is None else name
-
-        return self.return_loss(name, depth_error)

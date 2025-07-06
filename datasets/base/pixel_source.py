@@ -188,6 +188,8 @@ class ScenePixelSource(abc.ABC):
             self.depth_maps = self.depth_maps.to(device)
         # if self.semantic_masks is not None:
             # self.semantic_masks = self.semantic_masks.to(device)
+        if self.clip_text_features is not None:
+            self.clip_text_features = self.clip_text_features.to(device)
         if self.instance_masks is not None:
             self.instance_masks = self.instance_masks.to(device)
         if self.instance_confidences is not None:
@@ -715,72 +717,6 @@ class ScenePixelSource(abc.ABC):
         x, y = x.long(), y.long()
         return img_id, y, x
 
-    def  get_semantic_rays(
-        self,
-        num_rays: int,
-        candidate_indices: Tensor = None,
-    ) -> Dict[str, Tensor]:
-        """
-        Get a batch of rays for cross view semantic training.
-        Args:
-            num_rays: the number of rays to sample.
-            candidate_indices: the indices of the images to sample from.
-                If None, sample from all the images.
-                If not None, sample from the given images only.
-        Returns:
-            a dict of the sampled rays.
-        """
-        sam2_mask = None
-        pixel_coords, normalized_timestamps = None, None
-        if self.buffer_ratio > 0 and self.pixel_error_buffered:
-            num_roi_rays = int(num_rays * self.buffer_ratio)
-            num_random_rays = num_rays - num_roi_rays
-            random_img_idx, random_y, random_x = self.sample_uniform_rays(
-                num_random_rays, candidate_indices
-            )
-            roi_img_idx, roi_y, roi_x = self.sample_important_rays(
-                num_roi_rays, candidate_indices
-            )
-            img_idx = torch.cat([random_img_idx, roi_img_idx], dim=0)
-            y = torch.cat([random_y, roi_y], dim=0)
-            x = torch.cat([random_x, roi_x], dim=0)
-        else:
-            img_idx, y, x = self.sample_uniform_rays(
-                num_rays=num_rays, img_candidate_indices=candidate_indices
-            )
-        pixel_coords = torch.stack([y / self.HEIGHT, x / self.WIDTH], dim=-1)
-        
-        if self.sam2_masks is not None:
-            sam2_mask = self.sam2_masks[img_idx, y, x].to(self.device)
-            print(f"sam2_mask: {sam2_mask.size()}\n")
-            print(f"sam2_mask.device: {sam2_mask.device}\n")
-            print(f"self.sam2_masks.size(): {self.sam2_masks.size()}\n")
-            print(f"self.sam2_masks.device: {self.sam2_masks.device}\n")
-        if self.normalized_timestamps is not None:
-            normalized_timestamps = self.normalized_timestamps[img_idx]
-        if self.cam_ids is not None:
-            camera_id = self.cam_ids[img_idx]
-        image_id = torch.ones_like(x) * img_idx
-        print(f"image_id: {image_id.size()}\n")
-        c2w = self.cam_to_worlds[img_idx]
-        print(f"c2w: {c2w.size()}\n")
-        intrinsics = self.intrinsics[img_idx]
-        origins, viewdirs, direction_norm = get_rays(x, y, c2w, intrinsics)
-        data = {
-            "origins": origins,
-            "viewdirs": viewdirs,
-            "direction_norms": direction_norm,
-            "pixel_coords": pixel_coords,
-            "normed_timestamps": normalized_timestamps,
-            "img_idx": image_id,
-            "Height": y,
-            "Width": x,
-            "cam_idx": camera_id,
-            "clip_text_features": self.clip_text_features,
-            "sam2_masks": sam2_mask
-        }
-        return {k: v for k, v in data.items() if v is not None}
-
     def get_train_rays(
         self,
         num_rays: int,
@@ -829,9 +765,6 @@ class ScenePixelSource(abc.ABC):
         if self.depth_maps is not None:
             depth_map = self.depth_maps[img_idx, y, x]
             print(f"depth_map: {depth_map.size()}\n")
-        # if self.semantic_masks is not None:
-        #     semantic_mask = self.semantic_masks[img_idx, y, x]
-        #     print(f"semantic_mask: {semantic_mask.size()}\n")
         if self.clip_vis_features is not None:
             clip_vis_feature = self.clip_vis_features[img_idx, :, y, x].to(self.device)
             print(f"clip_vis_feature: {clip_vis_feature.size()}\n")
@@ -839,7 +772,7 @@ class ScenePixelSource(abc.ABC):
             print(f"self.clip_vis_features.size(): {self.clip_vis_features.size()}\n")
             print(f"self.clip_vis_features.device: {self.clip_vis_features.device}\n")
         if self.sam2_masks is not None:
-            sam2_mask = self.sam2_masks[img_idx, y, x].to(self.device)
+            sam2_mask = self.sam2_masks[img_idx, :, y, x].to(self.device)
             print(f"sam2_mask: {sam2_mask.size()}\n")
             print(f"sam2_mask.device: {sam2_mask.device}\n")
             print(f"self.sam2_masks.size(): {self.sam2_masks.size()}\n")

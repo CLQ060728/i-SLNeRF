@@ -412,7 +412,7 @@ class WaymoDataset(SceneDataset):
 
         # ---- create split wrappers ---- #
         pixel_sets, lidar_sets = self.build_split_wrapper()
-        self.train_pixel_set, self.novel_pixel_set, self.novel_train_set, \
+        self.train_pixel_set, self.semantic_pixel_set, self.semantic_train_set, \
             self.test_pixel_set, self.full_pixel_set = pixel_sets
         self.train_lidar_set, self.test_lidar_set, self.full_lidar_set = lidar_sets
 
@@ -420,7 +420,7 @@ class WaymoDataset(SceneDataset):
         """
         Makes each data source as a Pytorch Dataset
         """
-        train_pixel_set, novel_pixel_set, novel_train_set,\
+        train_pixel_set, semantic_pixel_set, semantic_train_set,\
             test_pixel_set, full_pixel_set = None, None, None, None, None
         train_lidar_set, test_lidar_set, full_lidar_set = None, None, None
 
@@ -447,51 +447,51 @@ class WaymoDataset(SceneDataset):
                     split="test",
                     ray_batch_size=self.data_cfg.ray_batch_size,
                 )
-                novel_pixel_set = SplitWrapper(
+                semantic_pixel_set = SplitWrapper(
                     datasource=self.pixel_source,
-                    # novel indices are img indices
+                    # semantic indices are img indices
                     split_indices=self.test_indices,
-                    split="novel",
+                    split="semantic",
                     ray_batch_size=self.data_cfg.ray_batch_size
                 )
-                novel_train_set = SplitWrapper(
+                semantic_train_set = SplitWrapper(
                     datasource=self.pixel_source,
-                    # novel train indices are img indices
+                    # semantic train indices are img indices
                     split_indices=self.train_indices,
-                    split="novel",
+                    split="semantic",
                     ray_batch_size=self.data_cfg.ray_batch_size
                 )
-                self.novel_pixel_indices = self.test_indices
-                self.novel_train_indices = self.train_indices
+                self.semantic_pixel_indices = self.test_indices
+                self.semantic_train_indices = self.train_indices
             else:
-                num_novel_indices = int(0.1 * len(self.train_indices))
+                num_semantic_indices = int(0.1 * len(self.train_indices))
                 random_indices = torch.randint(
                     0,
                     len(self.train_indices),
-                    size=(num_novel_indices,),
+                    size=(num_semantic_indices,),
                     device=self.device,
                 )
-                random_novel_indices = self.train_indices[random_indices]
-                novel_pixel_set = SplitWrapper(
+                random_semantic_indices = self.train_indices[random_indices]
+                semantic_pixel_set = SplitWrapper(
                     datasource=self.pixel_source,
-                    # novel indices are img indices
-                    split_indices=random_novel_indices,
-                    split="novel",
+                    # semantic indices are img indices
+                    split_indices=random_semantic_indices,
+                    split="semantic",
                     ray_batch_size=self.data_cfg.ray_batch_size
                 )
                 random_train_indices = []
                 for train_idx in self.train_indices:
-                    if train_idx not in random_novel_indices:
+                    if train_idx not in random_semantic_indices:
                         random_train_indices.append(train_idx)
-                novel_train_set = SplitWrapper(
+                semantic_train_set = SplitWrapper(
                     datasource=self.pixel_source,
-                    # novel train indices are img indices
+                    # semantic train indices are img indices
                     split_indices=random_train_indices,
-                    split="novel",
+                    split="semantic",
                     ray_batch_size=self.data_cfg.ray_batch_size
                 )
-                self.novel_pixel_indices = random_novel_indices
-                self.novel_train_indices = random_train_indices
+                self.semantic_pixel_indices = random_semantic_indices
+                self.semantic_train_indices = random_train_indices
 
         if self.lidar_source is not None:
             train_lidar_set = SplitWrapper(
@@ -517,7 +517,7 @@ class WaymoDataset(SceneDataset):
                     ray_batch_size=self.data_cfg.ray_batch_size,
                 )
         
-        pixel_set = (train_pixel_set, novel_pixel_set, novel_train_set, test_pixel_set, full_pixel_set)
+        pixel_set = (train_pixel_set, semantic_pixel_set, semantic_train_set, test_pixel_set, full_pixel_set)
         lidar_set = (train_lidar_set, test_lidar_set, full_lidar_set)
         return pixel_set, lidar_set
 

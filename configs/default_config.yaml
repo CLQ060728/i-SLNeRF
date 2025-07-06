@@ -98,7 +98,7 @@ nerf: # i-SLNeRF hyperparameters
       # ========== sky =========== #
       enable_sky_head: True # will also initialize a feature sky head when a feature head is enabled
       # ========== segmentations ======== #
-      enable_segmentation_head: True # whether to use segmentation head
+      enable_segmentation_heads: True # whether to use segmentation head
       split_semantic_instance: True # whether to use separate head for semantic and instance segmentation optimization
       semantic_hidden_dim: 128 # hidden dimension for semantic segmentation head
       instance_hidden_dim: 128 # hidden dimension for instance segmentation head
@@ -163,8 +163,24 @@ supervision: # supervision hyperparameters
     loss_coef: 0.01
   segmentation: # semantic and instance supervision
     semantic:
-      loss_coef: 0.1 # semantic loss coefficient
       start_iter: 10000 # when to start using semantic supervision
+      feature: # semantic feature loss
+        loss_coef: 1.0 # semantic feature loss coefficient
+      srmr: # semantic relevancy map regularization loss
+        loss_coef: 1.0 # semantic relevancy map regularization loss coefficient
+      cvsc: # cross-view semantic consistency loss
+        start_iter: 25000 # when to start using cross-view semantic consistency loss
+        loss_coef: 1.0 # cross-view semantic consistency loss coefficient
+      fda: # feature distribution alignment loss
+        dino_shift: 0.7 # DINO feature similarity threshold
+        dino_pos_weight: 200.0 # weight for positive correlation
+        dino_neg_weight: 0.2 # weight for negative correlation
+        patch_size: 64 # patch size for the DINO feature map
+        num_patches: 8 # number of patches for the DINO feature map
+        patch_stride: 2 # stride for the DINO feature map
+        temperature: 0.2 # temperature for the log_p_class computation
+        loss_coef: 1.0 # semantic loss coefficient
+      
     instance:
       loss_coef: 0.1 # instance loss coefficient
       start_iter: 20000 # when to start using instance consistency supervision

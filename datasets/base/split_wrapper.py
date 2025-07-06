@@ -29,7 +29,7 @@ class SplitWrapper(torch.utils.data.Dataset):
         self.ray_batch_size = ray_batch_size
 
     def __getitem__(self, idx) -> dict:
-        if self.split == "train":
+        if self.split == "train" or self.split == "semantic":
             # randomly sample rays from the training set
             return self.datasource.get_train_rays(
                 num_rays=self.ray_batch_size,
