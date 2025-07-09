@@ -335,7 +335,13 @@ class ScenePixelSource(abc.ABC):
                 self.clip_text_features = torch.load(fname, weights_only=True)
             else:
                 clip_vis_feature = torch.load(fname, weights_only=True)
-                clip_vis_features.append(clip_vis_feature)
+                clip_vis_template_feature = torch.zeros(clip_vis_feature.size(0),
+                                                        self.data_cfg.load_size[0],
+                                                        self.data_cfg.load_size[1],
+                                                        clip_vis_feature.size(-1))
+                clip_vis_template_feature[:, :clip_vis_feature.size(1),
+                                          :clip_vis_feature.size(2), :] = clip_vis_feature
+                clip_vis_features.append(clip_vis_template_feature)
         self.clip_vis_features = torch.stack(clip_vis_features, dim=0)
 
         sam2_masks = []
