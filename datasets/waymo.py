@@ -84,7 +84,7 @@ class WaymoPixelSource(ScenePixelSource):
                     os.path.join(self.data_path, "vision_depth", f"{t:03d}_{cam_idx}.npy")
                 )
                 ins_mask_filepaths.append(
-                    os.path.join(self.data_path, "ins_masks", f"{t:03d}_{cam_idx}.pt")
+                    os.path.join(self.data_path, "seg_masks", f"{t:03d}_{cam_idx}.pt")
                 )
                 clip_feature_filepaths.append(
                     os.path.join(self.data_path, "clip_features", f"{t:03d}_{cam_idx}.pt")
