@@ -5,4 +5,5 @@ logs/
 output/
 configs/
 sam2/
+Grounded-SAM-2/
 .yaml
