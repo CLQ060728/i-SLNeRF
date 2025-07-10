@@ -1,3 +1,4 @@
+# python==3.9 pip==25.1.1
 wheel==0.45.1
 setuptools==67.6.0
 --extra-index-url https://download.pytorch.org/whl/cu121
