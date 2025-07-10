@@ -68,7 +68,7 @@ def get_sam2_masks_from_path(args):
     # save the extracted masks  'sam2_masks'
     save_path = args.save_path
     os.makedirs(save_path, exist_ok=True)
-
+    max_num_dict = {"max_num": 0}
     for image_path in tqdm(image_paths, desc="Processing images"):
         image_path = Path(image_path)
         image = Image.open(image_path).convert("RGB")
@@ -80,10 +80,16 @@ def get_sam2_masks_from_path(args):
         print(f"Resized image: {image.size}")
         image = np.array(image)  # Convert to numpy array
         masks = get_sam2_masks(image, device=device)
-        
-        print(f"Extracted masks from {image_path.name}, shape: {masks.size()}, dtype: {masks.dtype}")
+        if max_num_dict["max_num"] < masks.size(0):
+            max_num_dict["max_num"] = masks.size(0)
+        print(f"Extracted masks from {image_path.name}, shape: {masks.size()}, dtype: {masks.dtype}, ")
+        print(f"max_num_dict: {max_num_dict}")
         save_file_path = os.path.join(save_path, f"{image_path.stem}.pt")
         torch.save(masks, save_file_path)
+    
+    save_dict_path = os.path.join(save_path, "max_num.json")
+    with open(save_dict_path, "w") as dict_file:
+        json.dump(max_num_dict, dict_file, indent=4)
 
 
 def save_SRMR(clip_vis_feature: Tensor, clip_text_features: Tensor, sam2_masks: Tensor, save_name, args):
@@ -109,7 +115,7 @@ def save_SRMR(clip_vis_feature: Tensor, clip_text_features: Tensor, sam2_masks: 
     p_class = F.softmax(relevancy_map, dim=1) # [N1,N2]
     class_index = torch.argmax(p_class, dim=-1) # [N1]
     pred_index = class_index.reshape(H, W).unsqueeze(0) # [1,H,W]
-
+    print(f"class_index number of zeros: {class_index[class_index==0].size()}")
     # Refine SAM2 masks using the predicted class_index  
     sam_refined_pred = torch.zeros((pred_index.shape[1], pred_index.shape[2]),
                                    dtype=torch.long).to(device)
