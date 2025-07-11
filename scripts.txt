@@ -8,9 +8,12 @@ python clip_feature_extractor.py --input_path data/ --save_path output/016/clip_
 
 # extract clip image features
 python clip_feature_extractor.py --input_path data/016/images/ --downscale 8 --save_path output/016/clip_features/
+python clip_feature_extractor.py --input_path data/016/images/ --downscale 8 --save_path output/016/clip_features/ > ../output/clip_output.log 2>&1 &
 
 # extract sam2 image masks
 python sam2_feature_extractor.py --input_path ../data/016/images/ --downscale 8 --save_path ../output/016/sam2_masks/
+python sam2_feature_extractor.py --input_path ../data/016/images/ --downscale 8 --save_path ../output/016/sam2_masks/ > ../output/sam2_output.log 2>&1 &
 
 # extract srmr image masks
 python sam2_feature_extractor.py --input_path ../data/016/ --save_path ../output/016/srmr_masks/
+python sam2_feature_extractor.py --input_path ../data/016/ --save_path ../output/016/srmr_masks/ > ../output/srmr_output.log 2>&1 &

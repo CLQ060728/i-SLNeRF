@@ -13,6 +13,10 @@ import cv2
 from pathlib import Path
 import glob, json, os
 from torch import Tensor
+import logging
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 
 def get_sam2_masks(image, device='cuda:0'):
@@ -45,8 +49,8 @@ def get_sam2_masks(image, device='cuda:0'):
     )
 
     masks = mask_generator.generate(image)
-    masks = [mask['segmentation'] for mask in masks]  # Extract only the segmentation masks
-    masks = torch.tensor(masks)  # Convert to tensor
+    masks = np.array([mask['segmentation'] for mask in masks])  # Extract only the segmentation masks
+    masks = torch.from_numpy(masks)  # Convert to tensor
 
     del sam2
     del mask_generator
@@ -64,7 +68,7 @@ def get_sam2_masks_from_path(args):
     device = torch.device(f"cuda:{args.gpu_id}" if torch.cuda.is_available() else "cpu")
 
     image_paths = sorted(glob.glob(f"{args.input_path}/*.jpg"))
-    print(f"Found {len(image_paths)} images in {args.input_path}")
+    logger.info(f"Found {len(image_paths)} images in {args.input_path}")
     # save the extracted masks  'sam2_masks'
     save_path = args.save_path
     os.makedirs(save_path, exist_ok=True)
@@ -72,18 +76,18 @@ def get_sam2_masks_from_path(args):
     for image_path in tqdm(image_paths, desc="Processing images"):
         image_path = Path(image_path)
         image = Image.open(image_path).convert("RGB")
-        print(f"Processing image: {image_path.name}, shape: {image.size}")
+        logger.info(f"Processing image: {image_path.name}, shape: {image.size}")
         # image = cv2.resize(image, (image.shape[1] // args.downscale, image.shape[0] // args.downscale),
                         #    interpolation=cv2.INTER_LINEAR)
         image = image.resize((image.width // args.downscale, image.height // args.downscale),
                             resample=Resampling.BILINEAR)
-        print(f"Resized image: {image.size}")
+        logger.info(f"Resized image: {image.size}")
         image = np.array(image)  # Convert to numpy array
         masks = get_sam2_masks(image, device=device)
         if max_num_dict["max_num"] < masks.size(0):
             max_num_dict["max_num"] = masks.size(0)
-        print(f"Extracted masks from {image_path.name}, shape: {masks.size()}, dtype: {masks.dtype}, ")
-        print(f"max_num_dict: {max_num_dict}")
+        logger.info(f"Extracted masks from {image_path.name}, shape: {masks.size()}, dtype: {masks.dtype}, ")
+        logger.info(f"max_num_dict: {max_num_dict}")
         save_file_path = os.path.join(save_path, f"{image_path.stem}.pt")
         torch.save(masks, save_file_path)
     
@@ -155,7 +159,7 @@ def save_all_SRMR_from_path(args):
     clip_features_path = os.path.join(args.input_path, "clip_features")
     sam2_masks_path = os.path.join(args.input_path, "sam2_masks")
     clip_feature_paths = sorted(glob.glob(f"{clip_features_path}/*.pt"))
-    print(f"Found {len(clip_feature_paths)} CLIP features in {clip_features_path}")
+    logger.info(f"Found {len(clip_feature_paths)} CLIP features in {clip_features_path}")
     
     # Load CLIP text features
     clip_text_features = torch.load(os.path.join(clip_features_path, "scene_classes_features.pt"),
@@ -166,11 +170,11 @@ def save_all_SRMR_from_path(args):
         if save_name == "scene_classes_features":
             continue
         clip_vis_feature = torch.load(clip_feature_file_path, weights_only=True).to(device)  # [S, H, W, D]
-        print(f"Processing feature file: {clip_feature_file_path}, shape: {clip_vis_feature.size()}")
+        logger.info(f"Processing feature file: {clip_feature_file_path}, shape: {clip_vis_feature.size()}")
         scale_index = torch.randint(0, clip_vis_feature.size(0), (1,))[0]  # Randomly select a scale index
-        print(f"Selected scale index: {scale_index}")
+        logger.info(f"Selected scale index: {scale_index}")
         clip_vis_feature = clip_vis_feature[scale_index]  # [H, W, D]
-        print(f"Selected feature shape: {clip_vis_feature.size()}")
+        logger.info(f"Selected feature shape: {clip_vis_feature.size()}")
         sam2_masks_file_path = os.path.join(sam2_masks_path, f"{save_name}.pt")
         sam2_masks = torch.load(sam2_masks_file_path, weights_only=True).to(device)  # [N, H, W]
         save_SRMR(clip_vis_feature, clip_text_features, sam2_masks, save_name, args)
@@ -186,4 +190,4 @@ if __name__ == "__main__":
 
     # get_sam2_masks_from_path(args)
     # save_all_SRMR_from_path(args)
-    print(f"Processing complete.")
+    logger.info(f"Processing complete.")
