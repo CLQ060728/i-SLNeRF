@@ -11,3 +11,6 @@ python clip_feature_extractor.py --input_path data/016/images/ --downscale 8 --s
 
 # extract sam2 image masks
 python sam2_feature_extractor.py --input_path ../data/016/images/ --downscale 8 --save_path ../output/016/sam2_masks/
+
+# extract srmr image masks
+python sam2_feature_extractor.py --input_path ../data/016/ --save_path ../output/016/srmr_masks/

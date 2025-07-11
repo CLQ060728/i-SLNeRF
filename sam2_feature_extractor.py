@@ -111,11 +111,11 @@ def save_SRMR(clip_vis_feature: Tensor, clip_text_features: Tensor, sam2_masks: 
     clip_text_features_normalized = F.normalize(clip_text_features, dim=1) # [N2, D], N2 is the number of scene classes
     clip_vis_feature_normalized = F.normalize(clip_vis_feature, dim=1) # [N1, D], N1 is 1 or H*W, D is the feature dimension
     # Compute cosine similarity
-    relevancy_map = torch.mm(clip_vis_feature_normalized, clip_text_features_normalized.T) # [N1,N2]        
+    relevancy_map = torch.mm(clip_vis_feature_normalized, clip_text_features_normalized.T) # [N1,N2]       
     p_class = F.softmax(relevancy_map, dim=1) # [N1,N2]
     class_index = torch.argmax(p_class, dim=-1) # [N1]
+    class_index = class_index + 1  # Add 1 to avoid zero index.
     pred_index = class_index.reshape(H, W).unsqueeze(0) # [1,H,W]
-    print(f"class_index number of zeros: {class_index[class_index==0].size()}")
     # Refine SAM2 masks using the predicted class_index  
     sam_refined_pred = torch.zeros((pred_index.shape[1], pred_index.shape[2]),
                                    dtype=torch.long).to(device)
@@ -133,7 +133,8 @@ def save_SRMR(clip_vis_feature: Tensor, clip_text_features: Tensor, sam2_masks: 
             most_common_element = unique_elements[int(counts.argmax().item())]  
         else:                                               
             continue 
-
+        # Assign the most common element to the corresponding pixels in the refined mask
+        most_common_element = most_common_element - 1  # Adjust back to zero index
         sam_refined_pred[cur_mask] = most_common_element  
     
     # save the extracted masks 'srmr_masks'
