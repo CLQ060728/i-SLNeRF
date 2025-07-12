@@ -1,9 +1,15 @@
-git clone https://github.com/facebookresearch/sam2.git && cd sam2
-rm -rf ./.git
-pip install -e .
+rm -rf ./Grounded-SAM-2/sam2/ 
+git clone https://github.com/facebookresearch/sam2.git ./Grounded-SAM-2/sam2/
+rm -rf ./Grounded-SAM-2/sam2/.git
+rm -rf ./Grounded-SAM-2/sam2/.github
+rm -rf ./Grounded-SAM-2/sam2/.gitignore
+rm -rf ./Grounded-SAM-2/sam2/.gitmodules
+printf "Removed unnecessary git files from sam2\n"
+cd ./Grounded-SAM-2/
+pip install --no-build-isolation -e sam2
 mkdir ./checkpoints/
 wget -P ./checkpoints/ https://dl.fbaipublicfiles.com/segment_anything_2/092824/sam2.1_hiera_large.pt
-cp ../sam2_feature_extractor.py ./
+cp ../sam2_feature_extractor.py ./sam2/
 export CUDA_HOME=/usr/local/cuda-12.1/
 pip install --upgrade torch==2.5.1
 pip install --upgrade torchvision==0.20.1
@@ -18,3 +24,4 @@ pip install --upgrade matplotlib==3.10.3
 pip install --upgrade plotly==6.1.2
 pip install --upgrade seaborn==0.13.2
 pip install --upgrade opencv-python==4.11.0.86
+pip cache purge
