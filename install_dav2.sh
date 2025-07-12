@@ -9,6 +9,7 @@ rm -rf ./DAV2/.gitmodules
 printf "Cloned DAV2 repository and removed unnecessary git files\n"
 
 cp ./dav2_requirements.txt ./DAV2/requirements.txt
+cp ./inference_dav2.py ./DAV2/inference_dav2.py
 
 cd ./DAV2/
 printf "Changed directory to DAV2\n"

@@ -19,6 +19,7 @@ printf "Cloned Grounding-DINO-1.5-API and removed unnecessary git files\n"
 rm -rf ./Grounded-SAM-2/grounding_dino/Grounding-DINO-1.5-API/requirements.txt
 cp ./gdino_requirements.txt ./Grounded-SAM-2/grounding_dino/Grounding-DINO-1.5-API/requirements.txt
 cp ./grounded_sam2_batch.py ./Grounded-SAM-2/
+
 cd ./Grounded-SAM-2/grounding_dino/Grounding-DINO-1.5-API/
 printf "Changed directory to Grounding-DINO-1.5-API\n"
 pip install --upgrade pip==24.2
