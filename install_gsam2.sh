@@ -23,7 +23,7 @@ cd ./Grounded-SAM-2/grounding_dino/Grounding-DINO-1.5-API/
 printf "Changed directory to Grounding-DINO-1.5-API\n"
 pip install --upgrade pip==24.2
 pip install --upgrade setuptools==67.6.0
-pip install --upgrade wheel==0.45.1
+pip install --upgrade wheel==0.45.1    # important for compiling Grounding-DINO-1.5-API
 sudo apt install g++-9 gcc-9 -y
 sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-9 100 --slave /usr/bin/g++ g++ /usr/bin/g++-9 --slave /usr/bin/gcov gcov /usr/bin/gcov-9
 pip install -r requirements.txt
