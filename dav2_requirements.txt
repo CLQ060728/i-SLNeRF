@@ -4,4 +4,5 @@ matplotlib==3.10.3
 opencv-python==4.11.0.86
 torch==2.5.1
 torchvision==0.20.1
+xformers==0.0.28.post3
 numpy==1.26.4
