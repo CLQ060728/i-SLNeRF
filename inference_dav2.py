@@ -54,7 +54,10 @@ if __name__ == '__main__':
         
         raw_image = cv2.imread(filename)
         
-        depth = depth_anything.infer_image(raw_image, raw_image.shape[1], raw_image.shape[0]) # args.input_size)
+        img_size = (raw_image.shape[1] + raw_image.shape[0]) // 2  # args.input_size
+        print(f"img_size: {img_size}")
+        depth = depth_anything.infer_image(raw_image, img_size)
+        # depth = depth_anything.infer_image(raw_image, raw_image.shape[1], raw_image.shape[0]) # args.input_size)
         print(f"depth.shape: {depth.shape}")
         print(f"depth max, min: {depth.max()}, {depth.min()}")
 
