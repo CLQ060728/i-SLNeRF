@@ -11,33 +11,33 @@ git rm -rf --cached data
 conda create -n dav2 python=3.10
 
 # get vision depth by DAV2
-python inference_dav2.py --encoder vitl --img-path ./data/016/images/ --outdir ./output/016/vision_depth/
+python inference_dav2.py --encoder vitl --img-path ../data/016/images/ --outdir ../output/016/vision_depth/
 
 
 ################################ create conda environment for RAM++ ############################################
 conda create -n rampp python=3.9
 
 # get openset images tags by RAM++
-python inference_ram_plus_openset.py --image ./data/016/images/ --pretrained pretrained/ram_plus_swin_large_14m.pth --output ./output/016/image_tags.txt
+python inference_ram_plus.py --image ../data/016/images/ --pretrained pretrained/ram_plus_swin_large_14m.pth --output ../output/016/image_tags_016.txt
 
 
 ################################ create conda environment for Grounded-SAM2 ###################################
 conda create -n gsam2 python=3.11   
 
 # get instance segmentation masks and confidences
-python grounded_sam2_batch.py --prompt_path ./data/016/image_tags_016.txt --img_path ./data/016/images/ --batch_lower_bound 0 --batch_upper_bound 55 --output_dir ./output/016/
+python grounded_sam2_batch.py --prompt_path ../data/016/image_tags_016.txt --img_path ../data/016/images/ --batch_lower_bound 0 --batch_upper_bound 55 --output_dir ../output/016/seg_masks/
 
 # extract clip text features
 python clip_feature_extractor.py --input_path data/ --save_path output/016/clip_features/
 
 # extract clip image features
 python clip_feature_extractor.py --input_path data/016/images/ --downscale 8 --save_path output/016/clip_features/
-python clip_feature_extractor.py --input_path data/016/images/ --downscale 8 --save_path output/016/clip_features/ > ../output/clip_output.log 2>&1 &
+python clip_feature_extractor.py --input_path data/016/images/ --downscale 8 --save_path output/016/clip_features/ > output/clip_output.log 2>&1 &
 
 # extract sam2 image masks
-python sam2_feature_extractor.py --input_path ../data/016/images/ --downscale 8 --save_path ../output/016/sam2_masks/
-python sam2_feature_extractor.py --input_path ../data/016/images/ --downscale 8 --save_path ../output/016/sam2_masks/ > ../output/sam2_output.log 2>&1 &
+python sam2_feature_extractor.py --input_path ../../data/016/images/ --downscale 8 --save_path ../../output/016/sam2_masks/
+python sam2_feature_extractor.py --input_path ../../data/016/images/ --downscale 8 --save_path ../../output/016/sam2_masks/ > ../../output/sam2_output.log 2>&1 &
 
 # extract srmr image masks
-python sam2_feature_extractor.py --input_path ../data/016/ --save_path ../output/016/srmr_masks/
-python sam2_feature_extractor.py --input_path ../data/016/ --save_path ../output/016/srmr_masks/ > ../output/srmr_output.log 2>&1 &
+python sam2_feature_extractor.py --input_path ../../data/016/ --save_path ../../output/016/srmr_masks/
+python sam2_feature_extractor.py --input_path ../../data/016/ --save_path ../../output/016/srmr_masks/ > ../../output/srmr_output.log 2>&1 &
