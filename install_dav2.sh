@@ -15,6 +15,6 @@ printf "Changed directory to DAV2\n"
 pip install --upgrade pip==25.0
 pip install -r requirements.txt
 mkdir checkpoints
-wget -P checkpoints/ https://huggingface.co/depth-anything/Depth-Anything-V2-Large/resolve/main/depth_anything_v2_vitl.pth?download=true
+wget https://huggingface.co/depth-anything/Depth-Anything-V2-Large/resolve/main/depth_anything_v2_vitl.pth?download=true -O checkpoints/depth_anything_v2_vitl.pth
 
 pip cache purge
