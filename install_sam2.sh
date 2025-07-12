@@ -4,6 +4,7 @@ pip install -e .
 mkdir ./checkpoints/
 wget -P ./checkpoints/ https://dl.fbaipublicfiles.com/segment_anything_2/092824/sam2.1_hiera_large.pt
 cp ../sam2_feature_extractor.py ./
+export CUDA_HOME=/usr/local/cuda-12.1/
 pip install --upgrade torch==2.5.1
 pip install --upgrade torchvision==0.20.1
 pip install --upgrade xformers==0.0.28.post3
