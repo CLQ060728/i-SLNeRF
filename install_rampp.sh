@@ -9,6 +9,7 @@ rm -rf ./RAMPP/.gitmodules
 printf "Cloned RAM++ repository and removed unnecessary git files\n"
 cp ./inference_ram_plus.py ./RAMPP/
 cp ./inference_ram_plus_openset.py ./RAMPP/
+cp ./ram_tag_list_4585_llm_tag_descriptions.json ./RAMPP/
 cp ./rampp_requirements.txt ./RAMPP/requirements.txt
 
 cd ./RAMPP/

@@ -7,11 +7,18 @@ git update-index --no-assume-unchanged data
 git rm -rf --cached data
 
 
+################################ create conda environment for DAV2 #############################################
+conda create -n dav2 python=3.10
+
+# get vision depth by DAV2
+python inference_dav2.py --encoder vitl --img-path ./data/016/images/ --outdir ./output/016/vision_depth/
+
+
 ################################ create conda environment for RAM++ ############################################
 conda create -n rampp python=3.9
 
 # get openset images tags by RAM++
-python inference_ram_plus.py --image ./data/016/images/ --pretrained pretrained/ram_plus_swin_large_14m.pth --output ./output/image_tags.txt
+python inference_ram_plus_openset.py --image ./data/016/images/ --pretrained pretrained/ram_plus_swin_large_14m.pth --output ./output/016/image_tags.txt
 
 
 ################################ create conda environment for Grounded-SAM2 ###################################

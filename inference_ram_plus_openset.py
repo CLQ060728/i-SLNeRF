@@ -36,7 +36,7 @@ parser.add_argument('--image-size',
 parser.add_argument('--llm_tag_des',
                     metavar='DIR',
                     help='path to LLM tag descriptions',
-                    default='datasets/openimages_rare_200/openimages_rare_200_llm_tag_descriptions.json')
+                    default='./ram_tag_list_4585_llm_tag_descriptions.json')
 parser.add_argument('--output',
                     metavar='DIR',
                     help='path to output tags',
