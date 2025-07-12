@@ -17,3 +17,5 @@ pip install --no-build-isolation -e .
 
 mkdir ./pretrained/
 wget -P ./pretrained/ https://huggingface.co/xinyu1205/recognize-anything-plus-model/blob/main/ram_plus_swin_large_14m.pth
+
+pip cache purge
