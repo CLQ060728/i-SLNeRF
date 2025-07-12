@@ -9,6 +9,7 @@ cd ./Grounded-SAM-2/
 pip install --no-build-isolation -e sam2
 mkdir ./checkpoints/
 wget -P ./checkpoints/ https://dl.fbaipublicfiles.com/segment_anything_2/092824/sam2.1_hiera_large.pt
+cp ./checkpoints/sam2.1_hiera_large.pt ./sam2/checkpoints/
 cp ../sam2_feature_extractor.py ./sam2/
 export CUDA_HOME=/usr/local/cuda-12.1/
 pip install --upgrade torch==2.5.1
