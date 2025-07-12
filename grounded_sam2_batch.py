@@ -1,3 +1,6 @@
+# Author: Qian Liu
+# Email: liu.qian.pro@gmail.com
+
 import os
 import cv2
 import json
@@ -41,6 +44,10 @@ parser.add_argument('--grounding_dino_checkpoint',
                     default="gdino_checkpoints/groundingdino_swint_ogc.pth",
                     help='path to grounding dino checkpoint',
                     type=str)
+parser.add_argument('--num_workers',
+                    default=2,
+                    type=int,
+                    help='number of workers for Grounded SAM2 inference')
 parser.add_argument('--box_threshold',
                     default=0.30,
                     type=float,
@@ -265,7 +272,7 @@ if __name__ == "__main__":
         
         taskFutures = list()
         context = mp.get_context("spawn")
-        num_workers = 3
+        num_workers = args.num_workers
         with CF.ProcessPoolExecutor(max_workers=num_workers, mp_context=context) as executor:
             for idx in range(args.batch_lower_bound, args.batch_upper_bound, 1):
                 img_path = os.path.join(args.img_path, file_names_list[idx])
