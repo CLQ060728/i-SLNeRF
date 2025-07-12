@@ -3,6 +3,9 @@ CUDA_VISIBLE_DEVICES=1 python train_islnerf.py --config_file ./configs/config.ya
 git update-index --no-assume-unchanged data
 git rm -rf --cached data
 
+# get openset images tags by RAM++
+python inference_ram_plus.py --image ./data/016/images/ --pretrained pretrained/ram_plus_swin_large_14m.pth --output ./output/image_tags.txt
+
 # get instance segmentation masks and confidences
 python grounded_sam2_batch.py --prompt_path ./data/016/image_tags_016.txt --img_path ./data/016/images/ --batch_lower_bound 0 --batch_upper_bound 55 --output_dir ./output/016/
 
