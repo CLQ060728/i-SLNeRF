@@ -284,23 +284,48 @@ def rename_merged_masks(input_path, output_path):
                 torch.save(old_mask_tensor, new_file_path)
 
 
-def save_diff_two_unique_labels_dicts(unique_labels_all, unique_labels_per_scene, output_path):
+def save_diff_two_unique_labels_dicts(unique_labels_per_scene, unique_labels_all, output_path):
     """
     Computes the difference between two unique labels dictionaries.
     
     Args:
+        unique_labels_per_scene (list): List containing unique labels for a specific scene.
         unique_labels_all (dict): Dictionary containing all unique labels.
-        unique_labels_per_scene (dict): Dictionary containing unique labels for a specific scene.
-
+        output_path (str): Path to the output file where different labels will be saved.
     """
     different_labels = []
-    for label in list(unique_labels_per_scene.keys()):
-        if label not in unique_labels_all:
+    for label in unique_labels_per_scene:
+        if label not in unique_labels_all.keys():
             different_labels.append(label)
 
     with open(output_path, "w") as output_file:
         json.dump(different_labels, output_file)
+    
     print(f"Different labels saved to {output_path}")
+
+
+def save_priorities_for_a_scene(unique_labels_per_scene, unique_labels_all, output_path):
+    """
+    Computes priorities for a scene based on unique labels.
+    
+    Args:
+        unique_labels_per_scene (list): List containing unique labels for a specific scene.
+        unique_labels_all (dict): Dictionary containing all unique labels and their priorities.
+        output_path (str): Path to the output file where dictionary of scene priorities will be saved.
+    """
+    priorities = {}
+    for label in unique_labels_per_scene:
+        if label in unique_labels_all.keys():
+            priorities[label] = unique_labels_all[label]
+        else:
+            print(f"Label {label} not found in all unique labels.")
+    
+    scene_id = output_path.split("/")[-2]
+    output_file_path = os.path.join(output_path, f"scene_priorities_{scene_id}.txt")
+    with open(output_file_path, "w") as output_file:
+        json.dump(priorities, output_file)
+    
+    print(f"Scene priorities saved to {output_file_path}")
 
 
 if __name__ == "__main__":
