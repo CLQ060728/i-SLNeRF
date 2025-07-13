@@ -33,9 +33,10 @@ def get_unique_labels_per_scene(input_path, output_path):
                 unique_labels_per_view.append(list(set(label_list)))
                 unique_labels =[*unique_labels, *list(set(label_list))]
     
-    scene_name = os.path.basename(input_path)
+    scene_name = input_path.split("/")[-3]
     unique_labels = list(set(unique_labels))
-    with open(output_path, "a") as output_file:
+    output_file_path = os.path.join(output_path, f"unique_labels_{scene_name}.txt")
+    with open(output_file_path, "a") as output_file:
         output_file.write(f"all distinct labels for scene {scene_name}\n\n")
         output_file.write(f"per-view labels length: {len(unique_labels_per_view)}\n")
         output_file.write(f"per-view labels: {unique_labels_per_view}\n\n")
