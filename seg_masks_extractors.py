@@ -280,21 +280,38 @@ def rename_merged_masks(input_path, output_path):
                 torch.save(old_mask_tensor, new_file_path)
 
 
+def save_diff_two_unique_labels_dicts(unique_labels_all, unique_labels_per_scene, output_path):
+    """
+    Computes the difference between two unique labels dictionaries.
+    
+    Args:
+        unique_labels_all (dict): Dictionary containing all unique labels.
+        unique_labels_per_scene (dict): Dictionary containing unique labels for a specific scene.
+
+    """
+    different_labels = []
+    for label in list(unique_labels_per_scene.keys()):
+        if label not in unique_labels_all:
+            different_labels.append(label)
+
+    with open(output_path, "w") as output_file:
+        json.dump(different_labels, output_file)
+    print(f"Different labels saved to {output_path}")
+
+
 if __name__ == "__main__":
-    path_root = "/nas-data/qian_workspace/Grounded-SAM-2/outputs/"
-    input_path = os.path.join(path_root, "016")
-    # output_path_arg = os.path.join(input_path_arg, "unique_labels.txt")
-    # get_unique_labels_per_scene(input_path_arg, output_path_arg)
-    # print(f"Unique labels extracted and saved to {output_path_arg}")
-    # print("Processing complete.")
-    # view_path = os.path.join(input_path_root, "000_0")
-    output_path = os.path.join(path_root, "merged_masks/016")
-    # input_path = os.path.join(path_root, "merged_masks/016")
-    ordered_unique_labels_dict_path = os.path.join(path_root,
-                                                   "unique_labels_ordered.txt")
-    # output_path = "/nas-data/qian_workspace/i-SLNeRF/data/Waymo/016/seg_masks/"
-    # rename_merged_masks(input_path, output_path)
-    merge_all_views_masks(input_path, ordered_unique_labels_dict_path, output_path)
+    parser = argparse.ArgumentParser(description="Extract instance segmentation & confidence masks from images")
+    parser.add_argument("--input_path", type=str, required=True, help="Path to input images directory")
+    parser.add_argument("--scene_id", type=int, default=0, help="Scene ID for the input images")
+    parser.add_argument("--save_path", type=str, default="", help="Path to save output masks")
+    args = parser.parse_args()
+
+    # get_unique_labels_per_scene(args.input_path, args.save_path)
+    # print(f"Unique labels extracted and saved to {args.save_path}")
+    # ordered_unique_labels_dict_path = os.path.join(args.input_path,
+    #                                                "unique_labels_ordered.txt")
+    # rename_merged_masks(args.input_path, args.output_path)
+    # merge_all_views_masks(input_path, ordered_unique_labels_dict_path, output_path)
 
     print("All Processing complete.")
     
