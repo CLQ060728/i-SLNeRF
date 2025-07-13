@@ -17,6 +17,6 @@ pip install -r requirements.txt
 pip install --no-build-isolation -e .
 
 mkdir ./pretrained/
-wget -P ./pretrained/ https://huggingface.co/xinyu1205/recognize-anything-plus-model/blob/main/ram_plus_swin_large_14m.pth
+wget https://www.dropbox.com/scl/fi/hyaw0643x8a7rx5y98o17/ram_plus_swin_large_14m.pth?rlkey=dfkxa2kq2h6111b9durtxe19l&st=61358nqs&dl=0 -O ./pretrained/ram_plus_swin_large_14m.pth
 
 pip cache purge
