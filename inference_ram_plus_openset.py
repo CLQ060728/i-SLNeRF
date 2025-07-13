@@ -93,6 +93,7 @@ if __name__ == "__main__":
 
         res = inference(image, model)
         print("Image Tags: ", res)
+        os.makedirs(os.path.dirname(args.output), exist_ok=True)
         with open(args.output, 'a') as out:
             out.write(args.image + ': ' + str(res) + '\n')
 
