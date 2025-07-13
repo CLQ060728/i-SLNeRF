@@ -8,21 +8,21 @@ git rm -rf --cached data
 
 
 ################################ create conda environment for DAV2 #############################################
-conda create -n dav2 python=3.10
+conda create -n dav2 python=3.10 -y
 
 # get vision depth by DAV2
 python inference_dav2.py --encoder vitl --img-path ../data/016/images/ --outdir ../output/016/vision_depth/
 
 
 ################################ create conda environment for RAM++ ############################################
-conda create -n rampp python=3.9
+conda create -n rampp python=3.9 -y
 
 # get openset images tags by RAM++
 python inference_ram_plus.py --image ../data/016/images/ --pretrained pretrained/ram_plus_swin_large_14m.pth --output ../output/016/image_tags_016.txt
 
 
 ################################ create conda environment for Grounded-SAM2 ###################################
-conda create -n gsam2 python=3.11   
+conda create -n gsam2 python=3.11 -y 
 
 # get instance segmentation masks and confidences
 python grounded_sam2_batch.py --prompt_path ../data/016/image_tags_016.txt --img_path ../data/016/images/ --batch_lower_bound 0 --batch_upper_bound 55 --output_dir ../output/016/seg_masks/ --num_workers 1
