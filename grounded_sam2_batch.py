@@ -49,11 +49,11 @@ parser.add_argument('--num_workers',
                     type=int,
                     help='number of workers for Grounded SAM2 inference')
 parser.add_argument('--box_threshold',
-                    default=0.20,
+                    default=0.25,
                     type=float,
                     help='box threshold for grounding dino')
 parser.add_argument('--text_threshold',
-                    default=0.20,
+                    default=0.25,
                     type=float,
                     help='text threshold for grounding dino')
 parser.add_argument('--output_dir',
@@ -255,8 +255,9 @@ if __name__ == "__main__":
     print(f"Prompt root: {prompt_root}")
 
     if os.path.isdir(args.img_path):
-        output_subdir = args.img_path.split("/")[-3]
-        output_path_root = os.path.join(args.output_dir, output_subdir)
+        # output_subdir = args.img_path.split("/")[-3]
+        # output_path_root = os.path.join(args.output_dir, output_subdir)
+        output_path_root = args.output_dir
         print(f"Output path root: {output_path_root}")
         if not os.path.exists(os.path.join(prompt_root, "file_names.txt")):
             file_names_list = []
