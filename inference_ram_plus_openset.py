@@ -75,6 +75,7 @@ if __name__ == "__main__":
 
     model = model.to(device)
     if os.path.isdir(args.image):
+        os.makedirs(os.path.dirname(args.output), exist_ok=True)
         with open(args.output, 'a') as out:
             for _, _, files in os.walk(args.image):
                 for file in files:

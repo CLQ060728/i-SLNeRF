@@ -57,6 +57,7 @@ if __name__ == "__main__":
     # print("图像标签: ", res[1])
 
     if os.path.isdir(args.image):
+        os.makedirs(os.path.dirname(args.output), exist_ok=True)
         with open(args.output, 'a') as out:
             for _, _, files in os.walk(args.image):
                 for file in files:
