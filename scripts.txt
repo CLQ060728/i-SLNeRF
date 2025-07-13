@@ -25,7 +25,7 @@ python inference_ram_plus.py --image ../data/016/images/ --pretrained pretrained
 conda create -n gsam2 python=3.11   
 
 # get instance segmentation masks and confidences
-python grounded_sam2_batch.py --prompt_path ../data/016/image_tags_016.txt --img_path ../data/016/images/ --batch_lower_bound 0 --batch_upper_bound 55 --output_dir ../output/016/seg_masks/
+python grounded_sam2_batch.py --prompt_path ../data/016/image_tags_016.txt --img_path ../data/016/images/ --batch_lower_bound 0 --batch_upper_bound 55 --output_dir ../output/016/seg_masks/ --num_workers 1
 
 # extract clip text features
 python clip_feature_extractor.py --input_path data/ --save_path output/016/clip_features/

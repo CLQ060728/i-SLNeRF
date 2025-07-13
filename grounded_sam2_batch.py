@@ -249,7 +249,7 @@ if __name__ == "__main__":
             print(f"Invalid line in prompt file: {prompt_line}")
             continue
     # print(f"prompts_dict: {prompts_dict}")
-    prompt_root = "/"
+    prompt_root = "/" if args.prompt_path.startswith("/") else ""
     for part in args.prompt_path.split("/")[:-1]:
         prompt_root = os.path.join(prompt_root, part)
     print(f"Prompt root: {prompt_root}")
