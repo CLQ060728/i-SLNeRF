@@ -28,7 +28,7 @@ conda create -n gsam2 python=3.11 -y
 python grounded_sam2_batch.py --prompt_path ../data/016/image_tags_016.txt --img_path ../data/016/images/ --batch_lower_bound 0 --batch_upper_bound 55 --output_dir ../output/016/seg_masks_split/ --num_workers 1
 
 # extract clip text features
-python clip_feature_extractor.py --input_path data/ --save_path output/016/clip_features/
+python clip_feature_extractor.py --input_path data/016/ --save_path output/016/clip_features/
 
 # extract clip image features
 python clip_feature_extractor.py --input_path data/016/images/ --downscale 8 --save_path output/016/clip_features/
