@@ -1,0 +1,300 @@
+import ast
+import os
+import numpy as np
+import json
+
+import torch
+
+
+def get_unique_labels_per_scene(input_path, output_path):
+    """
+    Extracts unique labels from the input file and writes them to the output file.
+    
+    Args:
+        input_path (str): Path to the input file containing scene data.
+        output_path (str): Path to the output file where unique labels will be saved.
+    """
+    unique_labels_per_view = []
+    unique_labels = []
+    for _, _, files in os.walk(input_path):
+        for label_conf_file in files:
+            if label_conf_file.endswith("label_conf.txt"):
+                sub_path_list = label_conf_file.split("_")
+                sub_path = f"{sub_path_list[0]}_{sub_path_list[1]}"
+                label_conf_path = os.path.join(input_path, sub_path, label_conf_file)
+                with open(label_conf_path, "r") as label_conf_file_obj:
+                    label_confs = label_conf_file_obj.readlines()
+                
+                label_list = label_confs[0].split(":")[1].strip()
+                label_list = ast.literal_eval(label_list)
+                unique_labels_per_view.append(list(set(label_list)))
+                unique_labels =[*unique_labels, *list(set(label_list))]
+    
+    scene_name = os.path.basename(input_path)
+    unique_labels = list(set(unique_labels))
+    with open(output_path, "a") as output_file:
+        output_file.write(f"all distinct labels for scene {scene_name}\n\n")
+        output_file.write(f"per-view labels length: {len(unique_labels_per_view)}\n")
+        output_file.write(f"per-view labels: {unique_labels_per_view}\n\n")
+        output_file.write(f"total unique labels: {len(unique_labels)}\n")
+        output_file.write(f"all labels: {unique_labels}")
+
+
+def get_list_duplicates(input_list):
+    """
+    Computes statistics for a list of duplicates with indices.
+    
+    Args:
+        input_list (list): List of values to compute duplicates and their indices.
+    
+    Returns:
+        dict: {element: [indices]}
+    """
+    duplicates_dict = {num: [i for i, x in enumerate(input_list) if x == num]
+                       for num in set(input_list) if input_list.count(num) >= 1}
+    
+    return duplicates_dict
+
+
+def extract_label_conf_content(label_conf_path):
+    """
+    Extracts label confidence content from the input file.
+    
+    Args:
+        label_conf_path (str): Path to the file containing label confidence data.
+    
+    Returns:
+        Tuple[List, List]: A tuple containing a list of label names and a list of their corresponding confidence scores.
+    """
+    with open(label_conf_path, "r") as label_conf_file_obj:
+        label_confs = label_conf_file_obj.readlines()
+        
+        # print(f"label_confs length: {len(label_confs)}")
+        label_list = label_confs[0].split(":")[1].strip()
+        label_list = ast.literal_eval(label_list)
+        conf_list = [line.strip() for line in label_confs[1:]]
+        conf_list_str = ""
+        for line in conf_list:
+            conf_list_str += line
+        # print(f"conf_list_str: {conf_list_str}")
+        conf_list = conf_list_str.split(":")[1].strip()[7:-1]
+        conf_list = ast.literal_eval(conf_list)
+    
+    return label_list, conf_list
+    
+
+def sort_list(input_list, reverse=False):
+    """
+    Sorts a list of values.
+    
+    Args:
+        input_list (list): List of values to be sorted.
+        reverse (bool): If True, sorts the list in descending order. Default is False (ascending order).
+    
+    Returns:
+        Tuple[List, List]: Sorted list of values and their corresponding indices.
+    """
+    sorted_indices = [i for i, _ in sorted(enumerate(input_list), key=lambda x: x[1],
+                                           reverse=reverse)]
+    sorted_input_list = sorted(input_list, reverse=reverse)
+
+    return sorted_input_list, sorted_indices
+
+
+def assign_merged_mask_values(traversing_mask, merged_mask, all_labels_dict,
+                              label_list, conf_list, traversing_index, same_order=False,
+                              traversed_index=0, view_path="", view_name=""):
+    # instance_index = duplicate_dict[label_list[traversing_index]].index(traversing_index) + 1
+    instance_index = traversing_index + 1
+    print(f"Instance index: {instance_index}")
+    if not same_order:
+        merged_mask[traversing_mask == 1] = np.array([all_labels_dict[label_list[traversing_index]],
+                                                     instance_index, 0.0])
+        where_mask = np.where(traversing_mask == 1)
+        indices_list = np.array([(row, col) for row, col in zip(where_mask[0], where_mask[1])])
+        print(f"Indices list shape: {indices_list.shape}")
+        for element in indices_list:
+            merged_mask[element[0], element[1], 2] = conf_list[traversing_index] + \
+                                (round(np.random.uniform(1.0, 10.01) * 0.001, ndigits=4) * \
+                                np.random.choice([-1.0, 1.0]))
+    else:
+        print(f"traversed index: {traversed_index}")
+        traversed_mask = np.loadtxt(os.path.join(view_path,
+                                                 f"{view_name}_mask_{traversed_index}.npy"),
+                                    encoding="utf-8")
+        combined_mask = traversing_mask + traversed_mask
+        # traversed_instance_index = duplicate_dict[label_list[traversed_index]].index(
+        #                            traversed_index) + 1
+        combined_instance_index = traversing_index + 1
+        print(f"Combined instance index: {combined_instance_index}")
+        # merged_mask[combined_mask == 2] = np.array([all_labels_dict[label_list[traversed_index]],
+        #                                             traversed_instance_index, 0.0])
+        
+        # assign values in traversing_mask and traversed_mask overlapping elements
+        where_combined_mask = np.where(combined_mask == 2)
+        combined_indices_list = np.array([(row, col) for row, col in
+                                         zip(where_combined_mask[0], where_combined_mask[1])])
+        print(f"Combined indices list shape: {combined_indices_list.shape}")
+        for element in combined_indices_list:
+            if merged_mask[element[0], element[1], 2] < (conf_list[traversing_index] - 0.01001):
+                confidence = conf_list[traversing_index] + \
+                             (round(np.random.uniform(1.0, 10.01) * 0.001, ndigits=4) * \
+                              np.random.choice([-1.0, 1.0]))
+                merged_mask[element[0], element[1], 0] = all_labels_dict[label_list[traversing_index]]
+                merged_mask[element[0], element[1], 1] = combined_instance_index
+                merged_mask[element[0], element[1], 2] = confidence
+        
+        # assign values in traversing_mask but not in overlapping elements and not in traversed_mask
+        where_remained_mask = np.where((traversing_mask == 1) & (combined_mask == 1))
+        remained_indices_list = np.array([(row, col) for row, col in
+                                         zip(where_remained_mask[0], where_remained_mask[1])])
+        print(f"Remained indices list shape: {remained_indices_list.shape}")
+        for element in remained_indices_list:
+            merged_mask[element[0], element[1], 0] = all_labels_dict[label_list[traversing_index]]
+            merged_mask[element[0], element[1], 1] = combined_instance_index
+            confidence = conf_list[traversing_index] + \
+                         (round(np.random.uniform(1.0, 10.01) * 0.001, ndigits=4) * \
+                          np.random.choice([-1.0, 1.0]))
+            merged_mask[element[0], element[1], 2] = confidence
+
+
+def merge_one_view_masks(view_path, ordered_unique_labels_dict, output_path):
+    """
+    Merges masks from a single view into a single mask file.
+    
+    Args:
+        view_path (str): Path to the directory containing mask files for a single view.
+        ordered_unique_labels_dict (dict): Dictionary relates unique labels to their scene orders.
+        output_path (str): Path to the output file where the merged mask will be saved.
+    """
+    view_name = os.path.basename(view_path)
+    label_conf_path = os.path.join(view_path, f"{view_name}_label_conf.txt")
+    label_list, conf_list = extract_label_conf_content(label_conf_path)
+    print(f"Label list: {label_list}")
+    print(f"Confidence list: {conf_list}")
+    duplicate_dict = get_list_duplicates(label_list)
+    print(f"Duplicate dictionary: {duplicate_dict}")
+    all_labels = list(ordered_unique_labels_dict.keys())
+    print(f"All labels length: {len(all_labels)}")
+    all_labels_dict = {label: (i + 1) for i, label in enumerate(all_labels)}
+    label_orders = []
+    for label in label_list:
+        if label in ordered_unique_labels_dict:
+            label_orders.append(ordered_unique_labels_dict[label])
+        else:
+            print(f"Label {label} not found in ordered unique labels dictionary.")
+    if len(label_orders) != len(label_list):
+        print(f"Warning: Label orders length {len(label_orders)} does not match label list length {len(label_list)}.")
+        raise ValueError("Label orders and label list lengths do not match.")
+    label_orders_sorted, label_orders_sorted_indices = sort_list(label_orders, reverse=True)
+    print(f"Label orders: {label_orders}")
+    print(f"Label orders sorted: {label_orders_sorted}")
+    print(f"Label orders sorted indices: {label_orders_sorted_indices}")
+    traversing_index = label_orders_sorted_indices[0]
+    print(f"Traversing index: {traversing_index}")
+
+    traversing_mask_file_path = os.path.join(view_path, f"{view_name}_mask_{traversing_index}.npy")
+    if not os.path.exists(traversing_mask_file_path):
+        print(f"Mask file {traversing_mask_file_path} does not exist. Skipping view {view_name}.")
+        raise FileNotFoundError(f"Mask file {traversing_mask_file_path} does not exist.")
+    traversing_mask = np.loadtxt(traversing_mask_file_path, encoding="utf-8")
+    merged_mask = np.zeros_like(traversing_mask, shape=(*traversing_mask.shape, 3), dtype=np.float16)
+    assign_merged_mask_values(traversing_mask, merged_mask,
+                              all_labels_dict, label_list, conf_list, traversing_index)
+    
+    # traverse the sorted label orders and update the merged mask accordingly
+    traversed_index = traversing_index
+    for index in range(1, len(label_orders_sorted)):
+        print(f"Current index: {index}")
+        traversing_index = label_orders_sorted_indices[index]
+        print(f"Traversing index: {traversing_index}")
+        traversing_mask_file_path = os.path.join(view_path, f"{view_name}_mask_{traversing_index}.npy")
+        if not os.path.exists(traversing_mask_file_path):
+            print(f"Mask file {traversing_mask_file_path} does not exist. Skipping view {view_name}.")
+            raise FileNotFoundError(f"Mask file {traversing_mask_file_path} does not exist.")
+        traversing_mask = np.loadtxt(traversing_mask_file_path, encoding="utf-8")
+
+        if label_orders[traversed_index] == label_orders[traversing_index]:
+            print(f"Label {label_list[traversing_index]} has the same order as traversed label {label_list[traversed_index]}.")
+            assign_merged_mask_values(traversing_mask, merged_mask,
+                                      all_labels_dict, label_list, conf_list, traversing_index,
+                                      same_order=True, traversed_index=traversed_index,
+                                      view_path=view_path, view_name=view_name)
+        else:
+            print(f"Label {label_list[traversing_index]} has a different order than traversed label {label_list[traversed_index]}.")
+            assign_merged_mask_values(traversing_mask, merged_mask,
+                                      all_labels_dict, label_list, conf_list, traversing_index)
+        traversed_index = traversing_index
+    
+    output_file_path = os.path.join(output_path, f"{view_name}.pt")
+    merged_mask_tensor = torch.from_numpy(merged_mask)
+    if not os.path.exists(output_path):
+        os.makedirs(output_path, exist_ok=True)
+    print(f"Saving merged mask to {output_file_path}")
+    torch.save(merged_mask_tensor, output_file_path)
+        
+
+def merge_all_views_masks(input_path, ordered_unique_labels_dict_path, output_path):
+    """
+    Merges masks from all views into a single mask file.
+    
+    Args:
+        input_path (str): Path to the directory containing mask files for all views.
+        ordered_unique_labels_dict_path (str): Path to the directory containing ordered_unique_labels_dict file.
+        output_path (str): Path to the output file where the merged mask will be saved.
+    """
+    if not os.path.exists(output_path):
+        os.makedirs(output_path, exist_ok=True)
+    
+    with open(ordered_unique_labels_dict_path, "r") as ould_file:
+        ordered_unique_labels_dict = json.load(ould_file)
+    print(f"Ordered unique labels dictionary loaded from {ordered_unique_labels_dict_path}")
+    
+    for _, view_paths, _ in os.walk(input_path):
+        for view_path_name in view_paths:
+            view_path = os.path.join(input_path, view_path_name)
+            print(f"Processing view path: {view_path}")
+            merge_one_view_masks(view_path, ordered_unique_labels_dict, output_path)
+            print(f"Merged masks saved to {output_path}")
+
+
+def rename_merged_masks(input_path, output_path):
+    """
+    Renames merged mask files in the input directory and saves them to the output directory.
+    
+    Args:
+        input_path (str): Path to the directory containing merged mask files.
+        output_path (str): Path to the directory where renamed files will be saved.
+    """
+    if not os.path.exists(output_path):
+        os.makedirs(output_path, exist_ok=True)
+    
+    for _, _, files in os.walk(input_path):
+        for file_name in files:
+            if file_name.endswith(".pt"):
+                new_file_name = file_name.replace("_merged_mask", "")
+                new_file_path = os.path.join(output_path, new_file_name)
+                old_file_path = os.path.join(input_path, file_name)
+                print(f"Renaming {old_file_path} to {new_file_path}")
+                old_mask_tensor = torch.load(old_file_path)
+                torch.save(old_mask_tensor, new_file_path)
+
+
+if __name__ == "__main__":
+    path_root = "/nas-data/qian_workspace/Grounded-SAM-2/outputs/"
+    input_path = os.path.join(path_root, "016")
+    # output_path_arg = os.path.join(input_path_arg, "unique_labels.txt")
+    # get_unique_labels_per_scene(input_path_arg, output_path_arg)
+    # print(f"Unique labels extracted and saved to {output_path_arg}")
+    # print("Processing complete.")
+    # view_path = os.path.join(input_path_root, "000_0")
+    output_path = os.path.join(path_root, "merged_masks/016")
+    # input_path = os.path.join(path_root, "merged_masks/016")
+    ordered_unique_labels_dict_path = os.path.join(path_root,
+                                                   "unique_labels_ordered.txt")
+    # output_path = "/nas-data/qian_workspace/i-SLNeRF/data/Waymo/016/seg_masks/"
+    # rename_merged_masks(input_path, output_path)
+    merge_all_views_masks(input_path, ordered_unique_labels_dict_path, output_path)
+
+    print("All Processing complete.")
+    
