@@ -49,11 +49,11 @@ parser.add_argument('--num_workers',
                     type=int,
                     help='number of workers for Grounded SAM2 inference')
 parser.add_argument('--box_threshold',
-                    default=0.30,
+                    default=0.20,
                     type=float,
                     help='box threshold for grounding dino')
 parser.add_argument('--text_threshold',
-                    default=0.30,
+                    default=0.20,
                     type=float,
                     help='text threshold for grounding dino')
 parser.add_argument('--output_dir',

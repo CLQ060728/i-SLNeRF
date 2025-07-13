@@ -15,16 +15,16 @@ from grounding_dino.groundingdino.util.inference import load_model, load_image, 
 Hyper parameters
 """
 # TEXT_PROMPT = "car . building . street . pole . cable . garage . tree ."
-TEXT_PROMPT = "building . car . corner . trees . drive . intersection . pole . road . stop light . traffic light . street corner . street sign . suv ."
-IMG_PATH = "./inputs/021/000_4.jpg"
+TEXT_PROMPT = "building . car . city street . drive . license plate . park . parking sign . road . street corner . street scene . street sign . suv . walk . white ."
+IMG_PATH = "/root/WORKSPACE/i-SLNeRF/data/016/images/002_2.jpg"
 SAM2_CHECKPOINT = "./checkpoints/sam2.1_hiera_large.pt"
 SAM2_MODEL_CONFIG = "configs/sam2.1/sam2.1_hiera_l.yaml"
 GROUNDING_DINO_CONFIG = "grounding_dino/groundingdino/config/GroundingDINO_SwinT_OGC.py"
 GROUNDING_DINO_CHECKPOINT = "gdino_checkpoints/groundingdino_swint_ogc.pth"
-BOX_THRESHOLD = 0.30
-TEXT_THRESHOLD = 0.30
+BOX_THRESHOLD = 0.20
+TEXT_THRESHOLD = 0.20
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
-OUTPUT_DIR = Path("outputs/021/")
+OUTPUT_DIR = Path("output/016/")
 DUMP_JSON_RESULTS = False
 
 # create output directory
