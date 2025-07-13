@@ -8,7 +8,7 @@ printf "Removed unnecessary git files from SAM2\n"
 cd ./Grounded-SAM-2/
 pip install --no-build-isolation -e SAM2
 mkdir ./checkpoints/
-wget -P ./checkpoints/ https://dl.fbaipublicfiles.com/segment_anything_2/092824/sam2.1_hiera_large.pt
+wget -P ./checkpoints/ "https://dl.fbaipublicfiles.com/segment_anything_2/092824/sam2.1_hiera_large.pt"
 cp ./checkpoints/sam2.1_hiera_large.pt ./SAM2/checkpoints/
 cp ../sam2_feature_extractor.py ./SAM2/
 rm -rf ./sam2/
