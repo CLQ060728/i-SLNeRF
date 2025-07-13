@@ -22,6 +22,7 @@ cp ./gdino_requirements.txt ./Grounded-SAM-2/grounding_dino/Grounding-DINO-1.5-A
 cp ./gdino_requirements.txt ./Grounded-SAM-2/grounding_dino/requirements.txt
 cp ./grounded_sam2_batch.py ./Grounded-SAM-2/
 cp ./grounded_sam2_local_demo.py ./Grounded-SAM-2/
+cp ./seg_masks_extractors.py ./Grounded-SAM-2/
 
 cd ./Grounded-SAM-2/grounding_dino/
 printf "Changed directory to grounding_dino\n"
