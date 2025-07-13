@@ -49,11 +49,11 @@ parser.add_argument('--num_workers',
                     type=int,
                     help='number of workers for Grounded SAM2 inference')
 parser.add_argument('--box_threshold',
-                    default=0.25,
+                    default=0.21,
                     type=float,
                     help='box threshold for grounding dino')
 parser.add_argument('--text_threshold',
-                    default=0.25,
+                    default=0.21,
                     type=float,
                     help='text threshold for grounding dino')
 parser.add_argument('--output_dir',
@@ -277,7 +277,12 @@ if __name__ == "__main__":
         with CF.ProcessPoolExecutor(max_workers=num_workers, mp_context=context) as executor:
             for idx in range(args.batch_lower_bound, args.batch_upper_bound, 1):
                 img_path = os.path.join(args.img_path, file_names_list[idx])
-                text = prompts_dict[file_names_list[idx]] + " |"
+                file_name = Path(file_names_list[idx]).stem
+                print(f"Processing file: {file_name}")
+                if file_name.endswith("0"):
+                    text = "sky |" + prompts_dict[file_names_list[idx]] + " |"
+                else:
+                    text = prompts_dict[file_names_list[idx]] + " |"
                 text = text.replace("|", ".")
                 print(f"Processing image: {file_names_list[idx]}")
                 print(f"Text prompt: {text}")
@@ -312,7 +317,7 @@ if __name__ == "__main__":
     else:
         output_path = args.output_dir
         text = prompts_dict[os.path.basename(args.img_path)]
-        text = text + " |"
+        text = "sky |" + text + " |"
         text = text.replace("|", ".")
         print(f"Processing image: {os.path.basename(args.img_path)}")
         print(f"Text prompt: {text}")
