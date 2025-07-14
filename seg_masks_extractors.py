@@ -238,18 +238,19 @@ def merge_one_view_masks(view_path, scene_priorities_dict, output_path):
     torch.save(merged_mask_tensor, output_file_path)
         
 
-def merge_all_views_masks(input_path, scene_priorities_dict_path, output_path):
+def merge_all_views_masks(input_path, output_path):
     """
     Merges masks from all views into a single mask file.
     
     Args:
         input_path (str): Path to the directory containing mask files for all views.
-        scene_priorities_dict_path (str): Path to the file containing scene priorities.
         output_path (str): Path to the output file where the merged mask will be saved.
     """
     if not os.path.exists(output_path):
         os.makedirs(output_path, exist_ok=True)
     
+    scene_id = input_path.split("/")[-3]
+    scene_priorities_dict_path = os.path.join(input_path, f"scene_priorities_{scene_id}.txt")
     with open(scene_priorities_dict_path, "r") as spdp_file:
         scene_priorities_dict = json.load(spdp_file)
     print(f"Scene priorities dictionary loaded from {scene_priorities_dict_path}")
@@ -391,10 +392,11 @@ def load_save_priorities(input_path, output_path):
         output_path (str): Path to the output file where priorities will be saved.
     """
     scene_id = input_path.split("/")[-2]
-    unique_scene_file = os.path.join(input_path, f"unique_labels_{scene_id}.txt")
+    unique_scene_file_path = os.path.join(input_path, f"scene_labels_{scene_id}.txt")
     with open(os.path.join(input_path, "unique_labels_ordered.txt"), "r") as unique_labels_file:
         unique_labels_all = json.load(unique_labels_file)
-    unique_labels_per_scene = extract_labels_from_scene_labels_file(unique_scene_file)
+    with open(unique_scene_file_path, "r") as unique_scene_file:
+        unique_labels_per_scene = json.load(unique_scene_file)
 
     save_priorities_for_a_scene(unique_labels_per_scene, unique_labels_all, output_path)
 
@@ -408,11 +410,12 @@ if __name__ == "__main__":
 
     # get_unique_labels_per_scene(args.input_path, args.save_path)
     # print(f"Unique labels extracted and saved to {args.save_path}")
+
     # load_save_same_diff_unique_labels(args.input_path, args.save_path)
-    # ordered_unique_labels_dict_path = os.path.join(args.input_path,
-    #                                                "unique_labels_ordered.txt")
-    # rename_merged_masks(args.input_path, args.output_path)
-    # merge_all_views_masks(input_path, ordered_unique_labels_dict_path, output_path)
+
+    # load_save_priorities(args.input_path, args.save_path)
+
+    # merge_all_views_masks(args.input_path, args.output_path)
 
     print("All Processing complete.")
     

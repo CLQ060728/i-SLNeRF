@@ -27,8 +27,10 @@ conda create -n gsam2 python=3.11 -y
 # get instance segmentation masks and confidences
 python grounded_sam2_batch.py --prompt_path ../data/016/image_tags_016.txt --img_path ../data/016/images/ --batch_lower_bound 0 --batch_upper_bound 55 --output_dir ../output/016/seg_masks_split/ --num_workers 1
 
-# get unique scene labels, statistics file
-python seg_masks_extractors.py --input_path ../output/016/seg_masks_split/ --save_path ../output/016/
+# processing seg_masks_split for merging
+python seg_masks_extractors.py --input_path ../output/016/ --save_path ../output/016/
+# merging
+python seg_masks_extractors.py --input_path ../output/016/seg_masks_split/ --save_path ../output/016/seg_masks/
 
 # extract clip text features
 python clip_feature_extractor.py --input_path data/016/ --save_path output/016/clip_features/
