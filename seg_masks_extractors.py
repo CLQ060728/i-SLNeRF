@@ -253,9 +253,14 @@ def merge_all_views_masks(input_path, output_path):
     input_path = input_path if input_path.endswith("/") else input_path + "/"
     input_path_list = input_path.split("/")
     scene_id = input_path_list[-3]
-    scene_input_path = "/"
-    for part in input_path_list[1:-2]:
-        scene_input_path += part + "/"
+    if input_path.startswith("..") or input_path.startswith("."):
+        scene_input_path = ""
+        for part in input_path_list[:-2]:
+            scene_input_path += part + "/"
+    else:
+        scene_input_path = "/"
+        for part in input_path_list[1:-2]:
+            scene_input_path += part + "/"
     scene_priorities_dict_path = os.path.join(scene_input_path, f"scene_priorities_{scene_id}.txt")
     with open(scene_priorities_dict_path, "r") as spdp_file:
         scene_priorities_dict = json.load(spdp_file)
