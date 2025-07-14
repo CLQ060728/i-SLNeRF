@@ -33,6 +33,7 @@ def get_unique_labels_per_scene(input_path, output_path):
                 unique_labels_per_view.append(list(set(label_list)))
                 unique_labels =[*unique_labels, *list(set(label_list))]
     
+    input_path = input_path if input_path.endswith("/") else input_path + "/"
     scene_name = input_path.split("/")[-3]
     unique_labels = list(set(unique_labels))
     output_file_path = os.path.join(output_path, f"unique_labels_{scene_name}.txt")
@@ -249,8 +250,12 @@ def merge_all_views_masks(input_path, output_path):
     if not os.path.exists(output_path):
         os.makedirs(output_path, exist_ok=True)
     
-    scene_id = input_path.split("/")[-3]
-    scene_priorities_dict_path = os.path.join(input_path, f"scene_priorities_{scene_id}.txt")
+    input_path = input_path if input_path.endswith("/") else input_path + "/"
+    input_path_list = input_path.split("/")
+    scene_id = input_path_list[-3]
+    scene_input_path = "/"
+    scene_input_path += part + "/" for part in input_path_list[1:-2]
+    scene_priorities_dict_path = os.path.join(scene_input_path, f"scene_priorities_{scene_id}.txt")
     with open(scene_priorities_dict_path, "r") as spdp_file:
         scene_priorities_dict = json.load(spdp_file)
     print(f"Scene priorities dictionary loaded from {scene_priorities_dict_path}")
@@ -301,6 +306,7 @@ def save_same_diff_two_unique_labels_dicts(unique_labels_per_scene, unique_label
         else:
             same_labels.append(label)
 
+    output_path = output_path if output_path.endswith("/") else output_path + "/"
     scene_id = output_path.split("/")[-2]
     output_same_file_path = os.path.join(output_path, f"same_labels_{scene_id}.txt")
     with open(output_same_file_path, "w") as output_same_file:
@@ -351,6 +357,7 @@ def load_save_same_diff_unique_labels(input_path, output_path):
         input_path (str): Path to the input file containing unique labels for a scene.
         output_path (str): Path to the output file where different labels will be saved.
     """
+    input_path = input_path if input_path.endswith("/") else input_path + "/"
     scene_id = input_path.split("/")[-2]
     unique_scene_file = os.path.join(input_path, f"unique_labels_{scene_id}.txt")
     with open(os.path.join(input_path, "unique_labels_ordered.txt"), "r") as unique_labels_file:
@@ -374,7 +381,8 @@ def save_priorities_for_a_scene(unique_labels_per_scene, unique_labels_all, outp
         for scene_label in unique_labels_per_scene:
             if scene_label in label or label in scene_label:
                 priorities[scene_label] = unique_labels_all[label]
-    
+
+    output_path = output_path if output_path.endswith("/") else output_path + "/"
     scene_id = output_path.split("/")[-2]
     output_file_path = os.path.join(output_path, f"scene_priorities_{scene_id}.txt")
     with open(output_file_path, "w") as output_file:
@@ -391,6 +399,7 @@ def load_save_priorities(input_path, output_path):
         input_path (str): Path to the input file containing scene unique labels and all labels for a scene.
         output_path (str): Path to the output file where priorities will be saved.
     """
+    input_path = input_path if input_path.endswith("/") else input_path + "/"
     scene_id = input_path.split("/")[-2]
     unique_scene_file_path = os.path.join(input_path, f"scene_labels_{scene_id}.txt")
     with open(os.path.join(input_path, "unique_labels_ordered.txt"), "r") as unique_labels_file:
