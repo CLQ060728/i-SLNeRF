@@ -415,7 +415,7 @@ if __name__ == "__main__":
 
     # load_save_priorities(args.input_path, args.save_path)
 
-    # merge_all_views_masks(args.input_path, args.output_path)
+    # merge_all_views_masks(args.input_path, args.save_path)
 
     print("All Processing complete.")
     
