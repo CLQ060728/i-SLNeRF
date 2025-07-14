@@ -37,9 +37,11 @@ def get_clip_text_features(args):
 
     tokenizer = open_clip.get_tokenizer(args.clip_model)
 
-    scene_id = args.input_path.split("/")[-3]  # Get the scene ID from the input path
+    input_path = args.input_path
+    input_path = input_path if input_path.endswith("/") else input_path + "/"
+    scene_id = input_path.split("/")[-2]  # Get the scene ID from the input path
     print(f"Loading scene classes from {scene_id}...")
-    scene_classes_path = os.path.join(args.input_path, f"unique_labels_{scene_id}.txt")
+    scene_classes_path = os.path.join(input_path, f"scene_priorities_{scene_id}.txt")
     with open(scene_classes_path, 'r') as scene_classes_file:
         scene_classes_dict = json.load(scene_classes_file)
     print(f"Scene classes loaded: {len(scene_classes_dict)} classes")
