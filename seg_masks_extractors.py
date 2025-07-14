@@ -124,9 +124,8 @@ def assign_merged_mask_values(traversing_mask, merged_mask, all_labels_dict,
                                 np.random.choice([-1.0, 1.0]))
     else:
         print(f"traversed index: {traversed_index}")
-        traversed_mask = np.loadtxt(os.path.join(view_path,
-                                                 f"{view_name}_mask_{traversed_index}.npy"),
-                                    encoding="utf-8")
+        traversed_mask = np.load(os.path.join(view_path,
+                                                 f"{view_name}_mask_{traversed_index}.npy"))
         combined_mask = traversing_mask + traversed_mask
         # traversed_instance_index = duplicate_dict[label_list[traversed_index]].index(
         #                            traversed_index) + 1
@@ -202,7 +201,7 @@ def merge_one_view_masks(view_path, scene_priorities_dict, output_path):
     if not os.path.exists(traversing_mask_file_path):
         print(f"Mask file {traversing_mask_file_path} does not exist. Skipping view {view_name}.")
         raise FileNotFoundError(f"Mask file {traversing_mask_file_path} does not exist.")
-    traversing_mask = np.loadtxt(traversing_mask_file_path, encoding="utf-8")
+    traversing_mask = np.load(traversing_mask_file_path)
     merged_mask = np.zeros_like(traversing_mask, shape=(*traversing_mask.shape, 3), dtype=np.float16)
     assign_merged_mask_values(traversing_mask, merged_mask,
                               all_labels_dict, label_list, conf_list, traversing_index)
@@ -217,7 +216,7 @@ def merge_one_view_masks(view_path, scene_priorities_dict, output_path):
         if not os.path.exists(traversing_mask_file_path):
             print(f"Mask file {traversing_mask_file_path} does not exist. Skipping view {view_name}.")
             raise FileNotFoundError(f"Mask file {traversing_mask_file_path} does not exist.")
-        traversing_mask = np.loadtxt(traversing_mask_file_path, encoding="utf-8")
+        traversing_mask = np.load(traversing_mask_file_path)
 
         if label_orders[traversed_index] == label_orders[traversing_index]:
             print(f"Label {label_list[traversing_index]} has the same order as traversed label {label_list[traversed_index]}.")
