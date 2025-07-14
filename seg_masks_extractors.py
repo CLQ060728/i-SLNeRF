@@ -162,13 +162,13 @@ def assign_merged_mask_values(traversing_mask, merged_mask, all_labels_dict,
             merged_mask[element[0], element[1], 2] = confidence
 
 
-def merge_one_view_masks(view_path, ordered_unique_labels_dict, output_path):
+def merge_one_view_masks(view_path, scene_priorities_dict, output_path):
     """
     Merges masks from a single view into a single mask file.
     
     Args:
         view_path (str): Path to the directory containing mask files for a single view.
-        ordered_unique_labels_dict (dict): Dictionary relates unique labels to their scene orders.
+        scene_priorities_dict (dict): Dictionary relates unique labels to their scene orders.
         output_path (str): Path to the output file where the merged mask will be saved.
     """
     view_name = os.path.basename(view_path)
@@ -178,15 +178,15 @@ def merge_one_view_masks(view_path, ordered_unique_labels_dict, output_path):
     print(f"Confidence list: {conf_list}")
     duplicate_dict = get_list_duplicates(label_list)
     print(f"Duplicate dictionary: {duplicate_dict}")
-    all_labels = list(ordered_unique_labels_dict.keys())
+    all_labels = list(scene_priorities_dict.keys())
     print(f"All labels length: {len(all_labels)}")
     all_labels_dict = {label: (i + 1) for i, label in enumerate(all_labels)}
     label_orders = []
     for label in label_list:
-        if label in ordered_unique_labels_dict:
-            label_orders.append(ordered_unique_labels_dict[label])
+        if label in scene_priorities_dict:
+            label_orders.append(scene_priorities_dict[label])
         else:
-            print(f"Label {label} not found in ordered unique labels dictionary.")
+            print(f"Label {label} not found in scene priorities dictionary.")
     if len(label_orders) != len(label_list):
         print(f"Warning: Label orders length {len(label_orders)} does not match label list length {len(label_list)}.")
         raise ValueError("Label orders and label list lengths do not match.")
@@ -238,27 +238,27 @@ def merge_one_view_masks(view_path, ordered_unique_labels_dict, output_path):
     torch.save(merged_mask_tensor, output_file_path)
         
 
-def merge_all_views_masks(input_path, ordered_unique_labels_dict_path, output_path):
+def merge_all_views_masks(input_path, scene_priorities_dict_path, output_path):
     """
     Merges masks from all views into a single mask file.
     
     Args:
         input_path (str): Path to the directory containing mask files for all views.
-        ordered_unique_labels_dict_path (str): Path to the directory containing ordered_unique_labels_dict file.
+        scene_priorities_dict_path (str): Path to the file containing scene priorities.
         output_path (str): Path to the output file where the merged mask will be saved.
     """
     if not os.path.exists(output_path):
         os.makedirs(output_path, exist_ok=True)
     
-    with open(ordered_unique_labels_dict_path, "r") as ould_file:
-        ordered_unique_labels_dict = json.load(ould_file)
-    print(f"Ordered unique labels dictionary loaded from {ordered_unique_labels_dict_path}")
-    
+    with open(scene_priorities_dict_path, "r") as spdp_file:
+        scene_priorities_dict = json.load(spdp_file)
+    print(f"Scene priorities dictionary loaded from {scene_priorities_dict_path}")
+
     for _, view_paths, _ in os.walk(input_path):
         for view_path_name in view_paths:
             view_path = os.path.join(input_path, view_path_name)
             print(f"Processing view path: {view_path}")
-            merge_one_view_masks(view_path, ordered_unique_labels_dict, output_path)
+            merge_one_view_masks(view_path, scene_priorities_dict, output_path)
             print(f"Merged masks saved to {output_path}")
 
 
@@ -284,7 +284,7 @@ def rename_merged_masks(input_path, output_path):
                 torch.save(old_mask_tensor, new_file_path)
 
 
-def save_diff_two_unique_labels_dicts(unique_labels_per_scene, unique_labels_all, output_path):
+def save_same_diff_two_unique_labels_dicts(unique_labels_per_scene, unique_labels_all, output_path):
     """
     Computes the difference between two unique labels dictionaries.
     
@@ -293,15 +293,70 @@ def save_diff_two_unique_labels_dicts(unique_labels_per_scene, unique_labels_all
         unique_labels_all (dict): Dictionary containing all unique labels.
         output_path (str): Path to the output file where different labels will be saved.
     """
-    different_labels = []
+    same_labels, different_labels = [], []
     for label in unique_labels_per_scene:
         if label not in unique_labels_all.keys():
             different_labels.append(label)
+        else:
+            same_labels.append(label)
 
-    with open(output_path, "w") as output_file:
-        json.dump(different_labels, output_file)
+    scene_id = output_path.split("/")[-2]
+    output_same_file_path = os.path.join(output_path, f"same_labels_{scene_id}.txt")
+    with open(output_same_file_path, "w") as output_same_file:
+        json.dump({len(same_labels):same_labels}, output_same_file, indent=4)
+    print(f"same labels length: {len(same_labels)}")
+    output_diff_file_path = os.path.join(output_path, f"different_labels_{scene_id}.txt")
+    with open(output_diff_file_path, "w") as output_diff_file:
+        json.dump({len(different_labels):different_labels}, output_diff_file, indent=4)
+    print(f"Different labels length: {len(different_labels)}")
+
+    output_scene_file_path = os.path.join(output_path, f"scene_labels_{scene_id}.txt")
+    with open(output_scene_file_path, "w") as output_scene_file:
+        json.dump(unique_labels_per_scene, output_scene_file)
+    print(f"All scene labels length: {len(unique_labels_per_scene)}")
+
+    print(f"Same labels saved to {output_same_file_path}")
+    print(f"Different labels saved to {output_diff_file_path}")
+    print(f"All scene labels saved to {output_scene_file_path}")
+
+
+def extract_labels_from_scene_labels_file(scene_file_path):
+    """
+    Extracts unique labels from a scene labels file.
     
-    print(f"Different labels saved to {output_path}")
+    Args:
+        scene_file_path (str): Path to the scene labels file.
+    
+    Returns:
+        list: A list of unique labels extracted from the scene file.
+    """
+    with open(scene_file_path, "r") as scene_file:
+        scene_file_content = scene_file.readlines()
+    
+    for line in scene_file_content:
+        if line.startswith("all labels"):
+            unique_labels = line.split(":")[1].strip()
+            unique_labels = ast.literal_eval(unique_labels)
+            break
+    
+    return unique_labels
+
+
+def load_save_same_diff_unique_labels(input_path, output_path):
+    """
+    Loads unique labels from a file and saves the same and different labels with another file.
+    
+    Args:
+        input_path (str): Path to the input file containing unique labels for a scene.
+        output_path (str): Path to the output file where different labels will be saved.
+    """
+    scene_id = input_path.split("/")[-2]
+    unique_scene_file = os.path.join(input_path, f"unique_labels_{scene_id}.txt")
+    with open(os.path.join(input_path, "unique_labels_ordered.txt"), "r") as unique_labels_file:
+        unique_labels_all = json.load(unique_labels_file)
+    unique_labels_per_scene = extract_labels_from_scene_labels_file(unique_scene_file)
+
+    save_same_diff_two_unique_labels_dicts(unique_labels_per_scene, unique_labels_all, output_path)
 
 
 def save_priorities_for_a_scene(unique_labels_per_scene, unique_labels_all, output_path):
@@ -314,18 +369,34 @@ def save_priorities_for_a_scene(unique_labels_per_scene, unique_labels_all, outp
         output_path (str): Path to the output file where dictionary of scene priorities will be saved.
     """
     priorities = {}
-    for label in unique_labels_per_scene:
-        if label in unique_labels_all.keys():
-            priorities[label] = unique_labels_all[label]
-        else:
-            print(f"Label {label} not found in all unique labels.")
+    for label in unique_labels_all.keys():
+        for scene_label in unique_labels_per_scene:
+            if scene_label in label or label in scene_label:
+                priorities[scene_label] = unique_labels_all[label]
     
     scene_id = output_path.split("/")[-2]
     output_file_path = os.path.join(output_path, f"scene_priorities_{scene_id}.txt")
     with open(output_file_path, "w") as output_file:
-        json.dump(priorities, output_file)
+        json.dump(priorities, output_file, indent=4)
     
     print(f"Scene priorities saved to {output_file_path}")
+
+
+def load_save_priorities(input_path, output_path):
+    """
+    Loads unique labels from a file and saves the priorities for a scene.
+    
+    Args:
+        input_path (str): Path to the input file containing scene unique labels and all labels for a scene.
+        output_path (str): Path to the output file where priorities will be saved.
+    """
+    scene_id = input_path.split("/")[-2]
+    unique_scene_file = os.path.join(input_path, f"unique_labels_{scene_id}.txt")
+    with open(os.path.join(input_path, "unique_labels_ordered.txt"), "r") as unique_labels_file:
+        unique_labels_all = json.load(unique_labels_file)
+    unique_labels_per_scene = extract_labels_from_scene_labels_file(unique_scene_file)
+
+    save_priorities_for_a_scene(unique_labels_per_scene, unique_labels_all, output_path)
 
 
 if __name__ == "__main__":
@@ -337,6 +408,7 @@ if __name__ == "__main__":
 
     # get_unique_labels_per_scene(args.input_path, args.save_path)
     # print(f"Unique labels extracted and saved to {args.save_path}")
+    # load_save_same_diff_unique_labels(args.input_path, args.save_path)
     # ordered_unique_labels_dict_path = os.path.join(args.input_path,
     #                                                "unique_labels_ordered.txt")
     # rename_merged_masks(args.input_path, args.output_path)
