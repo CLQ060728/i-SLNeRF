@@ -27,5 +27,6 @@ pip install --upgrade matplotlib==3.10.3
 pip install --upgrade plotly==6.1.2
 pip install --upgrade seaborn==0.13.2
 pip install --upgrade opencv-python==4.11.0.86
+pip install --upgrade open_clip_torch==2.32.0
 
 pip cache purge
