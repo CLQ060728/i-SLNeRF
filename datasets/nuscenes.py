@@ -527,18 +527,21 @@ class NuScenesDataset(SceneDataset):
         ) = self.split_train_test()
         # ---- create split wrappers ---- #
         pixel_sets, lidar_sets = self.build_split_wrapper()
-        self.train_pixel_set, self.test_pixel_set, self.full_pixel_set = pixel_sets
+        self.train_pixel_set, self.semantic_pixel_set, self.semantic_train_set, \
+            self.test_pixel_set, self.full_pixel_set = pixel_sets
         self.train_lidar_set, self.test_lidar_set, self.full_lidar_set = lidar_sets
 
     def build_split_wrapper(self):
         """
         Makes each data source as a Pytorch Dataset
         """
-        train_pixel_set, test_pixel_set, full_pixel_set = None, None, None
+        train_pixel_set, semantic_pixel_set, semantic_train_set,\
+            test_pixel_set, full_pixel_set = None, None, None, None, None
         train_lidar_set, test_lidar_set, full_lidar_set = None, None, None
         assert (
             len(self.test_indices) == 0
         ), "Test split is not supported yet for nuscenes"
+
         # ---- create split wrappers ---- #
         if self.pixel_source is not None:
             train_pixel_set = SplitWrapper(
@@ -555,11 +558,72 @@ class NuScenesDataset(SceneDataset):
                 split="full",
                 ray_batch_size=self.data_cfg.ray_batch_size,
             )
+            if len(self.test_indices) > 0:
+                test_pixel_set = SplitWrapper(
+                    datasource=self.pixel_source,
+                    # test_indices are img indices
+                    split_indices=self.test_indices,
+                    split="test",
+                    ray_batch_size=self.data_cfg.ray_batch_size,
+                )
+                semantic_pixel_set = SplitWrapper(
+                    datasource=self.pixel_source,
+                    # semantic indices are img indices
+                    split_indices=self.test_indices,
+                    split="semantic",
+                    ray_batch_size=self.data_cfg.ray_batch_size
+                )
+                semantic_train_set = SplitWrapper(
+                    datasource=self.pixel_source,
+                    # semantic train indices are img indices
+                    split_indices=self.train_indices,
+                    split="semantic",
+                    ray_batch_size=self.data_cfg.ray_batch_size
+                )
+                self.semantic_pixel_indices = self.test_indices
+                self.semantic_train_indices = self.train_indices
+                logger.info(f"Number of semantic train indices: {len(self.semantic_train_indices)}")
+                logger.info(f"Semantic train indices: {self.semantic_train_indices}")
+                logger.info(f"Number of semantic pixel indices: {len(self.semantic_pixel_indices)}")
+                logger.info(f"Semantic pixel indices: {self.semantic_pixel_indices}")
+            else:
+                num_semantic_indices = int(0.1 * len(self.train_indices))
+                random_indices = torch.randint(
+                    0,
+                    len(self.train_indices),
+                    size=(num_semantic_indices,),
+                    device=self.device,
+                )
+                random_semantic_indices = self.train_indices[random_indices]
+                semantic_pixel_set = SplitWrapper(
+                    datasource=self.pixel_source,
+                    # semantic indices are img indices
+                    split_indices=random_semantic_indices,
+                    split="semantic",
+                    ray_batch_size=self.data_cfg.ray_batch_size
+                )
+                random_train_indices = []
+                for train_idx in self.train_indices:
+                    if train_idx not in random_semantic_indices:
+                        random_train_indices.append(train_idx)
+                semantic_train_set = SplitWrapper(
+                    datasource=self.pixel_source,
+                    # semantic train indices are img indices
+                    split_indices=random_train_indices,
+                    split="semantic",
+                    ray_batch_size=self.data_cfg.ray_batch_size
+                )
+                self.semantic_pixel_indices = random_semantic_indices
+                self.semantic_train_indices = random_train_indices
+                logger.info(f"Number of semantic train indices: {len(self.semantic_train_indices)}")
+                logger.info(f"Semantic train indices: {self.semantic_train_indices}")
+                logger.info(f"Number of semantic pixel indices: {len(self.semantic_pixel_indices)}")
+                logger.info(f"Semantic pixel indices: {self.semantic_pixel_indices}")
+
         if self.lidar_source is not None:
             train_lidar_set = SplitWrapper(
                 datasource=self.lidar_source,
                 # the number of image timesteps is different from the number of lidar timesteps
-                # TODO: find a better way to handle this
                 # currently use all the lidar timesteps for training
                 split_indices=np.arange(self.lidar_source.num_timesteps),
                 split="train",
@@ -573,8 +637,9 @@ class NuScenesDataset(SceneDataset):
                 ray_batch_size=self.data_cfg.ray_batch_size,
             )
 
-        pixel_set = (train_pixel_set, test_pixel_set, full_pixel_set)
+        pixel_set = (train_pixel_set, semantic_pixel_set, semantic_train_set, test_pixel_set, full_pixel_set)
         lidar_set = (train_lidar_set, test_lidar_set, full_lidar_set)
+
         return pixel_set, lidar_set
 
     def build_data_source(self):
@@ -585,6 +650,7 @@ class NuScenesDataset(SceneDataset):
             self.data_cfg.pixel_source.load_rgb
             or self.data_cfg.pixel_source.load_sky_mask
             or self.data_cfg.pixel_source.load_depth_map
+            or self.data_cfg.pixel_source.load_segmentation
         )
         if load_pixel:
             pixel_source = NuScenesPixelSource(

@@ -348,21 +348,43 @@ class ScenePixelSource(abc.ABC):
         for fname in tqdm(
             self.sam2_mask_filepaths, desc="Loading SAM2 masks", dynamic_ncols=True
         ):
-            sam2_mask = torch.load(fname, weights_only=True)
-            sam2_masks.append(sam2_mask)
+            if Path(fname).stem == "max_num":
+                with open(fname, "r") as max_num_file:
+                    max_num_dict = json.load(max_num_file)
+            else:
+                if len(max_num_dict) > 0:
+                    sam2_mask_template = torch.zeros(
+                        max_num_dict["max_num"],
+                        self.data_cfg.load_size[0],
+                        self.data_cfg.load_size[1]
+                    ).bool()
+                    sam2_mask = torch.load(fname, weights_only=True)
+                    sam2_mask_template[:sam2_mask.size(0), 
+                                        :sam2_mask.size(1),
+                                        :sam2_mask.size(2)] = sam2_mask
+                    sam2_masks.append(sam2_mask_template)
+                else:
+                    raise ValueError(
+                        f"Max_num of SAM2 masks is zero, please check the file max_num.json."
+                    )
         self.sam2_masks = torch.stack(sam2_masks, dim=0)
 
         srmr_masks = []
         for fname in tqdm(
             self.srmr_mask_filepaths, desc="Loading GT SRMR masks", dynamic_ncols=True
         ):
+            srmr_mask_template = torch.zeros(
+                self.data_cfg.load_size[0],
+                self.data_cfg.load_size[1]
+            ).long()
             srmr_mask = torch.load(fname, weights_only=True)
-            srmr_masks.append(srmr_mask)
+            srmr_mask_template[:srmr_mask.size(0), :srmr_mask.size(1)] = srmr_mask
+            srmr_masks.append(srmr_mask_template)
         self.srmr_masks = torch.stack(srmr_masks, dim=0)
 
-        logger.info(f"self.clip_vis_features size: {self.clip_vis_features.size()}")
-        logger.info(f"self.sam2_masks size: {self.sam2_masks.size()}")
-        logger.info(f"self.srmr_masks size: {self.srmr_masks.size()}")
+        logger.info(f"self.clip_vis_features size: {self.clip_vis_features.size()}; dtype: {self.clip_vis_features.dtype}")
+        logger.info(f"self.sam2_masks size: {self.sam2_masks.size()}; dtype: {self.sam2_masks.dtype}")
+        logger.info(f"self.srmr_masks size: {self.srmr_masks.size()}; dtype: {self.srmr_masks.dtype}")
 
     def get_aabb_specified(self, aabb) -> Tensor:
         """

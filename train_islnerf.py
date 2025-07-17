@@ -855,6 +855,7 @@ def get_srmr(feat, clip_text_features, sam2_masks):
     relevancy_map = get_relevancy_map(feat, clip_text_features) # [num_rays, N2]
     p_class = F.softmax(relevancy_map, dim=1) # [num_rays, N2]
     class_index = torch.argmax(p_class, dim=-1) # [num_rays,]
+    class_index = class_index + 1  # Add 1 to avoid zero index.
     pred_index = class_index.unsqueeze(0) # [1, num_rays]
 
     # Refine SAM2 masks using the predicted class_index  
@@ -879,6 +880,7 @@ def get_srmr(feat, clip_text_features, sam2_masks):
         else:                                               
             continue 
 
+        most_common_element = most_common_element - 1  # Adjust back to zero index
         sam_refined_pred[cur_mask] = most_common_element
     
     return sam_refined_pred
@@ -1133,6 +1135,7 @@ def compute_segmentation_loss(cfg, step, dataset, model, dino_extractor, proposa
                 ins_pixel_data_dict["instance_confidences"]
                 )
             )
+            
             total_instance_loss = sum(loss for loss in instance_loss_dict.values())
             optimizer.zero_grad()
             ins_render_results["instance_embedding"].retain_grad()

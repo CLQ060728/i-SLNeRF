@@ -463,6 +463,10 @@ class WaymoDataset(SceneDataset):
                 )
                 self.semantic_pixel_indices = self.test_indices
                 self.semantic_train_indices = self.train_indices
+                logger.info(f"Number of semantic train indices: {len(self.semantic_train_indices)}")
+                logger.info(f"Semantic train indices: {self.semantic_train_indices}")
+                logger.info(f"Number of semantic pixel indices: {len(self.semantic_pixel_indices)}")
+                logger.info(f"Semantic pixel indices: {self.semantic_pixel_indices}")
             else:
                 num_semantic_indices = int(0.1 * len(self.train_indices))
                 random_indices = torch.randint(
@@ -492,6 +496,10 @@ class WaymoDataset(SceneDataset):
                 )
                 self.semantic_pixel_indices = random_semantic_indices
                 self.semantic_train_indices = random_train_indices
+                logger.info(f"Number of semantic train indices: {len(self.semantic_train_indices)}")
+                logger.info(f"Semantic train indices: {self.semantic_train_indices}")
+                logger.info(f"Number of semantic pixel indices: {len(self.semantic_pixel_indices)}")
+                logger.info(f"Semantic pixel indices: {self.semantic_pixel_indices}")
 
         if self.lidar_source is not None:
             train_lidar_set = SplitWrapper(
@@ -519,6 +527,7 @@ class WaymoDataset(SceneDataset):
         
         pixel_set = (train_pixel_set, semantic_pixel_set, semantic_train_set, test_pixel_set, full_pixel_set)
         lidar_set = (train_lidar_set, test_lidar_set, full_lidar_set)
+
         return pixel_set, lidar_set
 
     def build_data_source(self):
@@ -802,7 +811,7 @@ class WaymoDataset(SceneDataset):
             if "depth_maps" in data_dict:
                 all_depth_maps = np.array([])
                 # convert depth maps for visualisation
-                cmap = matplotlib.colormaps.get_cmap('Spectral_r') # 'Spectral_r'
+                cmap = matplotlib.colormaps.get_cmap('turbo') # 'Spectral_r'
                 for depth_map in data_dict["depth_maps"].cpu().numpy():
                     depth_map = depth_map - depth_map.min() / (
                         depth_map.max() - depth_map.min() + 1e-6
