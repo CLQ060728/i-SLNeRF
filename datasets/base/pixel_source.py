@@ -3,7 +3,7 @@
 
 import abc
 import logging
-import os
+import os, json
 from typing import Dict, Tuple, Union, List
 
 import numpy as np
@@ -345,13 +345,15 @@ class ScenePixelSource(abc.ABC):
         self.clip_vis_features = torch.stack(clip_vis_features, dim=0)
 
         sam2_masks = []
+        max_num_dict = {}
+        dict_file_path = os.path.join(os.path.dirname(self.sam2_mask_filepaths[0]), "max_num.json")
+        logger.info(f"dict_file_path: {dict_file_path}")
+        with open(dict_file_path, "r") as max_num_file:
+            max_num_dict = json.load(max_num_file)
         for fname in tqdm(
             self.sam2_mask_filepaths, desc="Loading SAM2 masks", dynamic_ncols=True
         ):
-            if Path(fname).stem == "max_num":
-                with open(fname, "r") as max_num_file:
-                    max_num_dict = json.load(max_num_file)
-            else:
+            if Path(fname).stem != "max_num":
                 if len(max_num_dict) > 0:
                     sam2_mask_template = torch.zeros(
                         max_num_dict["max_num"],

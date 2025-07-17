@@ -203,9 +203,12 @@ class NuScenesPixelSource(ScenePixelSource):
                     .replace("sweeps", "sweeps_sky_mask")
                     .replace(".jpg", ".png")
                 )
-                depth_map_filepaths.append(os.path.join(
-                    self.data_path, "vision_depth", f"{t:03d}_{cam_idx}.npy"
-                ))
+                # sky_mask_filepaths.append(
+                #     os.path.join(self.data_path, "sky_masks", f"{t:03d}_{cam_idx}.png")
+                # )
+                depth_map_filepaths.append(
+                    os.path.join(self.data_path, "vision_depth", f"{t:03d}_{cam_idx}.npy")
+                )
                 ins_mask_filepaths.append(
                     os.path.join(self.data_path, "seg_masks", f"{t:03d}_{cam_idx}.pt")
                 )
@@ -213,10 +216,10 @@ class NuScenesPixelSource(ScenePixelSource):
                     os.path.join(self.data_path, "clip_features", f"{t:03d}_{cam_idx}.pt")
                 )
                 sam2_mask_filepaths.append(
-                    os.path.join(self.data_path, "sam2_masks", f"{t:03d}_{cam_idx}.png")
+                    os.path.join(self.data_path, "sam2_masks", f"{t:03d}_{cam_idx}.pt")
                 )
                 srmr_mask_filepaths.append(
-                    os.path.join(self.data_path, "srmr_masks", f"{t:03d}_{cam_idx}.png")
+                    os.path.join(self.data_path, "srmr_masks", f"{t:03d}_{cam_idx}.pt")
                 )
         self.img_filepaths = np.array(img_filepaths)
         self.sky_mask_filepaths = np.array(sky_mask_filepaths)
@@ -594,7 +597,8 @@ class NuScenesDataset(SceneDataset):
                     size=(num_semantic_indices,),
                     device=self.device,
                 )
-                random_semantic_indices = self.train_indices[random_indices]
+                random_semantic_indices = torch.tensor(self.train_indices).int()
+                random_semantic_indices = random_semantic_indices[random_indices].tolist()
                 semantic_pixel_set = SplitWrapper(
                     datasource=self.pixel_source,
                     # semantic indices are img indices

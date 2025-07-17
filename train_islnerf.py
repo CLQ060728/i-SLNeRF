@@ -426,7 +426,7 @@ def construct_training_objects(cfg, dataset, device):
     model = builders.build_model_from_cfg(
         cfg=cfg.nerf.model, dataset=dataset, device=device
     )
-    dino_extractor = DINOVitExtractor(model_name='dino_vitb8', device=device)
+    dino_extractor = DINOVitExtractor(model_name='dino-vitb8', device=device)
     logger.info(f"PropNetEstimator: {proposal_networks}")
     logger.info(f"Model: {model}")
 

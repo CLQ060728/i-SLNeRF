@@ -232,7 +232,7 @@ class RadianceField(nn.Module):
             if self.split_semantic_instance:
                 # selection head for semantic clip feature selection
                 self.selection_head = nn.Sequential(
-                    nn.linear(segmentation_feature_dim // 2, semantic_hidden_dim),
+                    nn.Linear(segmentation_feature_dim // 2, semantic_hidden_dim),
                     nn.ReLU(),
                     nn.Linear(semantic_hidden_dim, semantic_hidden_dim * 2),
                     nn.ReLU(),

@@ -146,6 +146,7 @@ def render(
         computed = False
         for i in tqdm(indices, desc=f"rendering {dataset.split}", dynamic_ncols=True):
             data_dict = dataset[i]
+            logger.info(f"Inside video_utils, Rendering data_dict length: {len(data_dict)}")
             for k, v in data_dict.items():
                 if isinstance(v, Tensor):
                     data_dict[k] = v.cuda(non_blocking=True)
