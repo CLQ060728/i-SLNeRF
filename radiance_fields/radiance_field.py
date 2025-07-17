@@ -1158,6 +1158,7 @@ def compute_SRMR(vis_feature: Tensor, clip_text_features: Tensor, sam2_masks: Te
     relevancy_map = torch.mm(vis_feature_normalized, clip_text_features_normalized.T) # [N1,N2]        
     p_class = F.softmax(relevancy_map, dim=1) # [N1,N2]
     class_index = torch.argmax(p_class, dim=-1) # [N1]
+    class_index = class_index + 1  # Add 1 to avoid zero index.
     # pred_index = class_index.reshape(H, W).unsqueeze(0) # [1,H,W]
     pred_index = class_index.unsqueeze(0) # [1,N1]
 
@@ -1178,6 +1179,8 @@ def compute_SRMR(vis_feature: Tensor, clip_text_features: Tensor, sam2_masks: Te
         else:                                               
             continue 
 
+        # Assign the most common element to the corresponding pixels in the refined mask
+        most_common_element = most_common_element - 1  # Adjust back to zero index
         sam_refined_pred[cur_mask] = most_common_element  
     
     logger.info(f"SRMR: {sam_refined_pred.size()}, {sam_refined_pred.device}")
