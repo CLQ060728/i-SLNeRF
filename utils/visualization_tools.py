@@ -161,7 +161,7 @@ def visualize_depth(
     return visualize_cmap(
         x,
         acc,
-        cm.get_cmap("Spectral_r"),   # turbo
+        cm.get_cmap("turbo"),   #  Spectral_r
         curve_fn=depth_curve_fn,
         lo=lo,
         hi=hi,
