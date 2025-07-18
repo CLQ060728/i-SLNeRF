@@ -3,8 +3,6 @@ conda create -n islnerf python=3.9
 
 CUDA_VISIBLE_DEVICES=1 python train_islnerf.py --config_file ./configs/config.yaml --output_root ./output/ --project "i-SLNeRF" --run_name 016_spec_io0.6 data.scene_idx=16
 
-git update-index --no-assume-unchanged data
-git rm -rf --cached data
 
 
 ################################ create conda environment for DAV2 #############################################
