@@ -31,8 +31,8 @@ from datasets.utils import voxel_coords_to_world_coords, world_coords_to_voxel_c
 from radiance_fields import DensityField, RadianceField
 from radiance_fields.render_utils import render_rays
 from third_party.nerfacc_prop_net import PropNetEstimator
-from utils.misc import get_robust_pca
-from utils.misc import NumpyEncoder
+from islnerf_utils.misc import get_robust_pca
+from islnerf_utils.misc import NumpyEncoder
 
 DEFAULT_TRANSITIONS = (15, 6, 4, 11, 13, 6)
 

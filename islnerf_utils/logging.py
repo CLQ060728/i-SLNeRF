@@ -16,7 +16,7 @@ from typing import Optional
 
 import torch
 
-from utils.misc import get_global_rank, is_enabled, is_main_process
+from islnerf_utils.misc import get_global_rank, is_enabled, is_main_process
 
 logger = logging.getLogger()
 
