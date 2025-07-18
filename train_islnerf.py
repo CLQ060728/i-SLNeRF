@@ -957,9 +957,10 @@ def compute_fda_loss(cfg, semantic_train_data_dict, semantic_train_render_result
     with torch.no_grad():
         dino_ret = dino_extractor.get_vit_feature(patch_pixel_batch.permute(0, 3, 1, 2))
         dino_feature_map = dino_ret[:, 1:, :] 
-        logger.info(f"dino_ret.shape: {dino_ret.size()}")  
+        logger.debug(f"dino_ret.shape: {dino_ret.size()}")  
         dino_feature_map = dino_feature_map.reshape(dino_ret.size(0), patch_batch_h_w[1],
                                                     patch_batch_h_w[2], dino_ret.size(-1))
+        logger.debug(f"dino_feature_map.shape: {dino_feature_map.size()}")
     dino_pos_weight = cfg.supervision.segmentation.semantic.fda.dino_pos_weight
     dino_neg_weight = cfg.supervision.segmentation.semantic.fda.dino_neg_weight
     semantic_loss_dict.update(fda_loss_fn(

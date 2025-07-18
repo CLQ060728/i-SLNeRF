@@ -35,7 +35,7 @@ class SplitWrapper(torch.utils.data.Dataset):
                 num_rays=self.ray_batch_size,
                 candidate_indices=self.split_indices,
             )
-        elif self.split == "test":
+        else:
             # return all rays for the given index
             return self.datasource.get_render_rays(self.split_indices[idx])
 
