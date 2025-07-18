@@ -148,7 +148,7 @@ def render(
             logger.debug(f"Inside video_utils, Rendering dataset.split: {dataset.split}")
             logger.debug(f"data_dict length: {len(data_dict) if data_dict else 'None'}")
             logger.debug(f"data_dict keys: {data_dict.keys() if data_dict else 'None'}")
-            logger.debug(f"data_dict['pixels'] shape: {data_dict['pixels'].shape 
+            logger.debug(f"data_dict['pixels'] shape: {data_dict['pixels'].size() 
                            if data_dict and 'pixels' in data_dict else 'None'}")
             for k, v in data_dict.items():
                 if isinstance(v, Tensor):
