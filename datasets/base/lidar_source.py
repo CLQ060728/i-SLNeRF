@@ -10,7 +10,7 @@ import torch.nn.functional as F
 from omegaconf import OmegaConf
 from torch import Tensor
 
-logger = logging.getLogger()
+logger = logging.getLogger(__name__)
 
 
 class SceneLidarSource(abc.ABC):

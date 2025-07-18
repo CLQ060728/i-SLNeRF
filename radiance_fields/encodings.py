@@ -11,7 +11,7 @@ import json
 
 import third_party.tcnn_modules as tcnn
 
-logger = logging.getLogger()
+logger = logging.getLogger(__name__)
 
 
 class XYZ_Encoder(nn.Module):

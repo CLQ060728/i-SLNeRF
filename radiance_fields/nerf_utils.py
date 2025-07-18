@@ -10,7 +10,7 @@ import torch.nn.functional as F
 from torch import Tensor
 from torch.cuda.amp import custom_bwd, custom_fwd
 
-logger = logging.getLogger()
+logger = logging.getLogger(__name__)
 
 
 def contract_inner(positions: Tensor, aabb:Tensor, inner_range:Tensor, contract_ratio:float) -> Tensor:

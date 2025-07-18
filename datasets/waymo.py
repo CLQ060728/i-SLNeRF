@@ -19,7 +19,7 @@ from datasets.base.split_wrapper import SplitWrapper
 from datasets.utils import voxel_coords_to_world_coords
 from radiance_fields.video_utils import depth_visualizer, save_videos, scene_flow_to_rgb
 
-logger = logging.getLogger()
+logger = logging.getLogger(__name__)
 
 
 class WaymoPixelSource(ScenePixelSource):

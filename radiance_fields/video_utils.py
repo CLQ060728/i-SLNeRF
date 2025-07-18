@@ -26,7 +26,7 @@ from islnerf_utils.visualization_tools import (
     visualize_depth,
 )
 
-logger = logging.getLogger()
+logger = logging.getLogger(__name__)
 
 depth_visualizer = lambda frame, opacity: visualize_depth(
     frame,

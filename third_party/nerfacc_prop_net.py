@@ -16,7 +16,7 @@ from nerfacc.pdf import importance_sampling, searchsorted
 from nerfacc.volrend import render_transmittance_from_density
 from torch import Tensor
 
-logger = logging.getLogger()
+logger = logging.getLogger(__name__)
 
 
 def blur_stepfun(x, y, r):

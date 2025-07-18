@@ -12,7 +12,7 @@ from .split_wrapper import SplitWrapper
 from typing import List
 import logging
 
-logger = logging.getLogger()
+logger = logging.getLogger(__name__)
 
 
 class SceneDataset(abc.ABC):

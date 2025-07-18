@@ -19,7 +19,7 @@ import logging
 
 # acknowledgement: this code is inspired by the code from nerfacc
 
-logger = logging.getLogger()
+logger = logging.getLogger(__name__)
 
 
 def render_weights_opacity_depth_from_density(
@@ -318,9 +318,9 @@ def render_rays(
         num_rays, _ = rays_shape
         reshaped_data_dict = data_dict.copy()
 
-    logger.info(f"radiance_field.sem before: {radiance_field.sem}")
+    logger.debug(f"radiance_field.sem before: {radiance_field.sem}")
     radiance_field.sem = False
-    logger.info(f"radiance_field.sem after: {radiance_field.sem}")
+    logger.debug(f"radiance_field.sem after: {radiance_field.sem}")
 
     def prop_sigma_fn(t_starts, t_ends, proposal_network):
         # query propsal networks for density
@@ -426,9 +426,9 @@ def render_semantic_rays(
         num_rays, _ = rays_shape
         reshaped_data_dict = data_dict.copy()
     
-    logger.info(f"radiance_field.sem before: {radiance_field.sem}")
+    logger.debug(f"radiance_field.sem before: {radiance_field.sem}")
     radiance_field.sem = True
-    logger.info(f"radiance_field.sem after: {radiance_field.sem}")
+    logger.debug(f"radiance_field.sem after: {radiance_field.sem}")
 
     def prop_sigma_fn(t_starts, t_ends, proposal_network):
         # query propsal networks for density

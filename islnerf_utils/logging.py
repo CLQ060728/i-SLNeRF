@@ -18,7 +18,7 @@ import torch
 
 from islnerf_utils.misc import get_global_rank, is_enabled, is_main_process
 
-logger = logging.getLogger()
+logger = logging.getLogger(__name__)
 
 
 class MetricLogger(object):

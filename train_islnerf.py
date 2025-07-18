@@ -30,7 +30,7 @@ from third_party.nerfacc_prop_net import PropNetEstimator, get_proposal_requires
 from islnerf_utils.logging import MetricLogger, setup_logging
 from islnerf_utils.visualization_tools import visualize_scene_flow
 
-logger = logging.getLogger()
+logger = logging.getLogger(__name__)
 current_time = time.strftime("%Y-%m-%d_%H-%M-%S", time.localtime())
 
 # a global list of keys to render,
@@ -165,7 +165,7 @@ def setup(args):
     misc.fix_random_seeds(cfg.optim.seed)
 
     global logger
-    setup_logging(output=log_dir, level=logging.INFO, time_string=current_time)
+    setup_logging(output=log_dir, level=logging.DEBUG, time_string=current_time)
     logger.info(
         "\n".join("%s: %s" % (k, str(v)) for k, v in sorted(dict(vars(args)).items()))
     )
@@ -427,15 +427,16 @@ def construct_training_objects(cfg, dataset, device):
         cfg=cfg.nerf.model, dataset=dataset, device=device
     )
     dino_extractor = DINOVitExtractor(model_name='dino_vitb8', device=device)
-    logger.info(f"PropNetEstimator: {proposal_networks}")
-    logger.info(f"Model: {model}")
+    logger.debug(f"PropNetEstimator: {proposal_networks}")
+    logger.debug(f"Model: {model}")
 
     # ------ build optimizer and grad scaler -------- #
     optimizer = builders.build_optimizer_from_cfg(cfg=cfg.optim, model=model)
-    pixel_grad_scaler = torch.amp.GradScaler(2**10)
-    lidar_grad_scaler = torch.amp.GradScaler(2**10)
-    semantic_grad_scaler = torch.amp.GradScaler(2**10)
-    instance_grad_scaler = torch.amp.GradScaler(2**10)
+    # pixel_grad_scaler = torch.amp.GradScaler(2**10)
+    pixel_grad_scaler = torch.cuda.amp.GradScaler(2**10)
+    lidar_grad_scaler = torch.cuda.amp.GradScaler(2**10)
+    semantic_grad_scaler = torch.cuda.amp.GradScaler(2**10)
+    instance_grad_scaler = torch.cuda.amp.GradScaler(2**10)
 
     # ------ build scheduler -------- #
     scheduler = builders.build_scheduler_from_cfg(cfg=cfg.optim, optimizer=optimizer)
@@ -798,8 +799,8 @@ def get_patchified_training_batch(cfg, data_dict, render_results):
     patch_pixel_batch, patch_feat_batch = [], []
     device = data_dict["pixels"].device
 
-    logger.info(f"data_dict['pixels'].shape: {data_dict['pixels'].size()}")
-    logger.info(f"render_results['semantic_embedding'].shape: {render_results['semantic_embedding'].size()}")
+    logger.debug(f"data_dict['pixels'].shape: {data_dict['pixels'].size()}")
+    logger.debug(f"render_results['semantic_embedding'].shape: {render_results['semantic_embedding'].size()}")
     for patch_index in range(num_patches):
         patch_start = patch_index * patch_stride
         patch_end = patch_start + (patch_size ** 2)
@@ -807,20 +808,27 @@ def get_patchified_training_batch(cfg, data_dict, render_results):
             raise ValueError(
                 f"Patch end index {patch_end} exceeds pixel data length {data_dict['pixels'].shape[0]}"
             )
-        patch_pixel_batch.append(
-            data_dict["pixels"][patch_start:patch_end, :].reshape(
+        
+        patch_pixel_batch.append(data_dict["pixels"][patch_start:patch_end, :].reshape(
                 patch_size, patch_size, -1
             )
         )
-        patch_feat_batch.append(
-            render_results["semantic_embedding"][patch_start:patch_end, :].reshape(
-                patch_size, patch_size, -1
-            )
+
+        feat_ori = render_results["semantic_embedding"][patch_start:patch_end, :].reshape(
+            -1, patch_size, patch_size
+        ).unsqueeze(0)  # [1, feat_size, PH, PW]
+        logger.debug(f"feat_ori.shape: {feat_ori.size()}")
+        feat_avgpool_8 = F.avg_pool2d(feat_ori, kernel_size=8, stride=8)
+        logger.debug(f"feat_avgpool_8.shape: {feat_avgpool_8.size()}")
+        feat_avgpool_8 = feat_avgpool_8.reshape(
+            patch_size // 8, patch_size // 8, -1
         )
+        logger.debug(f"feat_avgpool_8 reshaped: {feat_avgpool_8.size()}")
+        patch_feat_batch.append(feat_avgpool_8)
     patch_pixel_batch = torch.stack(patch_pixel_batch, dim=0).to(device)
     patch_feat_batch = torch.stack(patch_feat_batch, dim=0).to(device)
-    logger.info(f"patch_pixel_batch.shape: {patch_pixel_batch.size()}")
-    logger.info(f"patch_feat_batch.shape: {patch_feat_batch.size()}")
+    logger.debug(f"patch_pixel_batch.shape: {patch_pixel_batch.size()}")
+    logger.debug(f"patch_feat_batch.shape: {patch_feat_batch.size()}")
 
     return patch_pixel_batch, patch_feat_batch   
 
@@ -861,14 +869,14 @@ def get_srmr(feat, clip_text_features, sam2_masks):
     # Refine SAM2 masks using the predicted class_index  
     sam_refined_pred = torch.zeros((pred_index.shape[1],), dtype=torch.long).to(device)
     
-    logger.info(f"sam2_masks shape: {sam2_masks.size()}")
+    logger.debug(f"sam2_masks shape: {sam2_masks.size()}")
     sam2_masks = sam2_masks.permute(1, 0).to(device)
-    logger.info(f"sam2_masks shape after permute: {sam2_masks.size()}")
+    logger.debug(f"sam2_masks shape after permute: {sam2_masks.size()}")
     for ann in sam2_masks:
-        logger.info(f"ann shape: {ann.size()}")
+        logger.debug(f"ann shape: {ann.size()}")
         cur_mask = ann.squeeze()  # [num_rays,], current mask for the annotation                  
         sub_mask = pred_index.squeeze().clone()
-        logger.info(f"sub_mask shape: {sub_mask.size()}")
+        logger.debug(f"sub_mask shape: {sub_mask.size()}")
         sub_mask[~cur_mask] = 0
         
         flat_sub_mask = sub_mask.clone().view(-1)           
@@ -895,16 +903,16 @@ def compute_feature_loss(semantic_train_data_dict, semantic_train_render_results
         semantic_loss_dict: Dictionary to store the computed losses.
     """
     selection_feat = semantic_train_render_results["selection_mask"] # [num_rays, num_scales]
-    device = selection_feat.device
-    clip_vis_feat = semantic_train_data_dict["clip_vis_features"].to(device) # [num_rays, num_scales, feat_dim]
-    logger.info(f"selection_feat.shape: {selection_feat.size()}")
-    logger.info(f"clip_vis_feat.shape: {clip_vis_feat.size()}")
-    logger.info(f"clip_vis_feat.device: {clip_vis_feat.device}")
+    # device = selection_feat.device
+    clip_vis_feat = semantic_train_data_dict["clip_vis_features"] # [num_rays, num_scales, feat_dim]
+    logger.debug(f"selection_feat.shape: {selection_feat.size()}")
+    logger.debug(f"clip_vis_feat.shape: {clip_vis_feat.size()}")
+    logger.debug(f"clip_vis_feat.device: {clip_vis_feat.device}")
     selected_clip_vis_feat = torch.sum(clip_vis_feat * selection_feat[..., None], dim=1) # [num_rays, feat_dim]
     selected_clip_vis_feat = F.normalize(selected_clip_vis_feat, dim=-1)
     semantic_feat = semantic_train_render_results["semantic_embedding"] # [num_rays, feat_dim]
-    logger.info(f"semantic_feat.shape: {semantic_feat.size()}")
-    logger.info(f"semantic_feat.device: {semantic_feat.device}")
+    logger.debug(f"semantic_feat.shape: {semantic_feat.size()}")
+    logger.debug(f"semantic_feat.device: {semantic_feat.device}")
 
     semantic_loss_dict.update(feat_loss_fn(
         semantic_feat=semantic_feat,
@@ -925,29 +933,31 @@ def compute_fda_loss(cfg, semantic_train_data_dict, semantic_train_render_result
         semantic_loss_dict: Dictionary to store the computed losses.
     """
     # compute FDA loss
-    # [PB, PH, PW, 3], [PB, PH, PW, feat_dim]
+    # [PB, PH, PW, 3], [PB, PFH, PFW, feat_dim], PFH = PH // 8, PFW = PW // 8
     patch_pixel_batch, patch_feat_batch = get_patchified_training_batch(cfg, semantic_train_data_dict,
                                                                         semantic_train_render_results)
     
     patch_batch_h_w = patch_feat_batch.size()[:3]
     patch_feat_batch = patch_feat_batch.reshape(
         -1, patch_feat_batch.size(-1)
-    ) # [N1, feat_dim], N1, PB * PH * PW
-    logger.info(f"patch_feat_batch.shape: {patch_feat_batch.size()}")
+    ) # [N1, feat_dim], N1, PB * PFH * PFW
+    logger.debug(f"patch_feat_batch.shape: {patch_feat_batch.size()}")
+    logger.debug(f"semantic_train_data_dict.keys(): {semantic_train_data_dict.keys()}")
     clip_text_features = semantic_train_data_dict["clip_text_features"] # [N2, feat_dim]
-    logger.info(f"clip_text_features.shape: {clip_text_features.size()}")
-    logger.info(f"clip_text_features.device: {clip_text_features.device}")
+    logger.debug(f"clip_text_features.shape: {clip_text_features.size()}")
+    logger.debug(f"clip_text_features.device: {clip_text_features.device}")
     relevancy_map = get_relevancy_map(patch_feat_batch, clip_text_features) # [N1, N2]
-    logger.info(f"relevancy_map.device: {relevancy_map.device}")
+    logger.debug(f"relevancy_map.device: {relevancy_map.device}")
     temperature = cfg.supervision.segmentation.semantic.fda.temperature
     log_p_class = F.log_softmax(relevancy_map / temperature, dim=1) # [N1, N2]
-    log_p_class = log_p_class.reshape(*patch_batch_h_w, -1) # [PB, PH, PW, N2], N2, num_classes
-    logger.info(f"log_p_class.shape: {log_p_class.size()}")
-    logger.info(f"log_p_class.device: {log_p_class.device}")
+    log_p_class = log_p_class.reshape(*patch_batch_h_w, -1) # [PB, PFH, PFW, N2], N2, num_classes
+    logger.debug(f"log_p_class.shape: {log_p_class.size()}")
+    logger.debug(f"log_p_class.device: {log_p_class.device}")
     # compute DINO features
     with torch.no_grad():
         dino_ret = dino_extractor.get_vit_feature(patch_pixel_batch.permute(0, 3, 1, 2))
-        dino_feature_map = dino_ret[:, 1:, :]   
+        dino_feature_map = dino_ret[:, 1:, :] 
+        logger.info(f"dino_ret.shape: {dino_ret.size()}")  
         dino_feature_map = dino_feature_map.reshape(dino_ret.size(0), patch_batch_h_w[1],
                                                     patch_batch_h_w[2], dino_ret.size(-1))
     dino_pos_weight = cfg.supervision.segmentation.semantic.fda.dino_pos_weight
@@ -970,13 +980,13 @@ def compute_srmr_loss(semantic_train_data_dict, semantic_train_render_results, s
         semantic_loss_dict: Dictionary to store the computed losses.
     """
     clip_text_features = semantic_train_data_dict["clip_text_features"]  # [num_classes, feat_dim]
-    logger.info(f"clip_text_features.shape: {clip_text_features.size()}")
-    logger.info(f"clip_text_features.device: {clip_text_features.device}")
-    device = clip_text_features.device
+    logger.debug(f"clip_text_features.shape: {clip_text_features.size()}")
+    logger.debug(f"clip_text_features.device: {clip_text_features.device}")
+    # device = clip_text_features.device
     semantic_feat = semantic_train_render_results["semantic_embedding"] # [num_rays, feat_dim]
-    logger.info(f"semantic_feat.shape: {semantic_feat.size()}")
-    srmr_feat = semantic_train_data_dict["srmr_masks"].to(device)  # [num_rays,]
-    logger.info(f"srmr_feat.shape: {srmr_feat.size()}; srmr_feat.device: {srmr_feat.device}")
+    logger.debug(f"semantic_feat.shape: {semantic_feat.size()}")
+    srmr_feat = semantic_train_data_dict["srmr_masks"]  # [num_rays,]
+    logger.debug(f"srmr_feat.shape: {srmr_feat.size()}; srmr_feat.device: {srmr_feat.device}")
     relevancy_map = get_relevancy_map(semantic_feat, clip_text_features)  # [num_rays, num_classes]
     semantic_loss_dict.update(srmr_loss_fn(
         relevancy_map=relevancy_map,
@@ -997,27 +1007,35 @@ def compute_cvsc_loss(semantic_train_data_dict, semantic_train_render_results, s
         semantic_loss_dict: Dictionary to store the computed losses.
     """
     semantic_train_feat = semantic_train_render_results["semantic_embedding"]  # [num_rays, feat_dim]
-    logger.info(f"semantic_train_feat.shape: {semantic_train_feat.size()}")
-    logger.info(f"semantic_train_feat.device: {semantic_train_feat.device}")
+    logger.debug(f"semantic_train_feat.shape: {semantic_train_feat.size()}")
+    logger.debug(f"semantic_train_feat.device: {semantic_train_feat.device}")
     semantic_pixel_feat = semantic_pixel_render_results["semantic_embedding"]  # [num_rays, feat_dim]
-    logger.info(f"semantic_pixel_feat.shape: {semantic_pixel_feat.size()}")
-    logger.info(f"semantic_pixel_feat.device: {semantic_pixel_feat.device}")
+    logger.debug(f"semantic_pixel_feat.shape: {semantic_pixel_feat.size()}")
+    logger.debug(f"semantic_pixel_feat.device: {semantic_pixel_feat.device}")
     clip_text_features = semantic_train_data_dict["clip_text_features"]  # [num_classes, feat_dim]
-    logger.info(f"clip_text_features.shape: {clip_text_features.size()}")
-    logger.info(f"clip_text_features.device: {clip_text_features.device}")
-    device = clip_text_features.device
+    logger.debug(f"clip_text_features.shape: {clip_text_features.size()}")
+    logger.debug(f"clip_text_features.device: {clip_text_features.device}")
+    # device = clip_text_features.device
     # compute relevance map
     relevancy_map_train = get_relevancy_map(semantic_train_feat, clip_text_features) # [num_rays, num_classes]
     relevancy_map_pixel = get_relevancy_map(semantic_pixel_feat, clip_text_features)
-    logger.info(f"relevancy_map_train.shape: {relevancy_map_train.size()}")
-    logger.info(f"relevancy_map_train.device: {relevancy_map_train.device}")
-    logger.info(f"relevancy_map_pixel.shape: {relevancy_map_pixel.size()}")
-    logger.info(f"relevancy_map_pixel.device: {relevancy_map_pixel.device}")
+    logger.debug(f"relevancy_map_train.shape: {relevancy_map_train.size()}")
+    logger.debug(f"relevancy_map_train.device: {relevancy_map_train.device}")
+    logger.debug(f"relevancy_map_pixel.shape: {relevancy_map_pixel.size()}")
+    logger.debug(f"relevancy_map_pixel.device: {relevancy_map_pixel.device}")
     sam2_mask_train = semantic_train_data_dict["sam2_masks"] # [num_rays, N], N, number of SAM2 regional proposals
     sam2_mask_pixel = semantic_pixel_data_dict["sam2_masks"]
     srmr_mask_train = get_srmr(semantic_train_feat, clip_text_features, sam2_mask_train)
     srmr_mask_pixel = get_srmr(semantic_pixel_feat, clip_text_features, sam2_mask_pixel)
-    
+    logger.debug(f"sam2_mask_train.shape: {sam2_mask_train.size()}")
+    logger.debug(f"sam2_mask_train.device: {sam2_mask_train.device}")
+    logger.debug(f"sam2_mask_pixel.shape: {sam2_mask_pixel.size()}")
+    logger.debug(f"sam2_mask_pixel.device: {sam2_mask_pixel.device}")
+    logger.debug(f"srmr_mask_train.shape: {srmr_mask_train.size()}")
+    logger.debug(f"srmr_mask_train.device: {srmr_mask_train.device}")
+    logger.debug(f"srmr_mask_pixel.shape: {srmr_mask_pixel.size()}")
+    logger.debug(f"srmr_mask_pixel.device: {srmr_mask_pixel.device}")
+
     semantic_loss_dict.update(cvsc_loss_fn(
         relevancy_map_train=relevancy_map_train,
         relevancy_map_pixel=relevancy_map_pixel,
@@ -1031,7 +1049,7 @@ def compute_segmentation_loss(cfg, step, dataset, model, dino_extractor, proposa
                               proposal_requires_grad_fn, semantic_loss_dict, instance_loss_dict,
                               feat_loss_fn, fda_loss_fn, srmr_loss_fn, cvsc_loss_fn, instance_consistency_loss_fn, optimizer,
                               semantic_grad_scaler, instance_grad_scaler, scheduler):
-    if cfg.data.pixel_source.load_segmentation and cfg.nerf.model.head.enable_segmentation_head and \
+    if cfg.data.pixel_source.load_segmentation and cfg.nerf.model.head.enable_segmentation_heads and \
         step > cfg.supervision.segmentation.semantic.start_iter:
         proposal_requires_grad = proposal_requires_grad_fn(int(step))
         i = torch.randint(0, len(dataset.semantic_train_set), (1,)).item()

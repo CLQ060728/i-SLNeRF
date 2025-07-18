@@ -23,7 +23,7 @@ import numpy as np
 import torch
 import torch.distributed as dist
 
-logger = logging.getLogger()
+logger = logging.getLogger(__name__)
 
 
 class NumpyEncoder(json.JSONEncoder):

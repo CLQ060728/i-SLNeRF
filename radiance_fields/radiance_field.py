@@ -17,7 +17,7 @@ from radiance_fields.encodings import (
 from radiance_fields.nerf_utils import contract, contract_inner, find_topk_nearby_timesteps, trunc_exp
 from radiance_fields.mlp import MLP
 
-logger = logging.getLogger()
+logger = logging.getLogger(__name__)
 
 
 class RadianceField(nn.Module):
@@ -646,7 +646,7 @@ class RadianceField(nn.Module):
                 if self.split_semantic_instance:
                     if self.sem:
                         dynamic_selection_feats = self.selection_head(dynamic_semantic_feats)
-                        logger.info(f"Dynamic selection features shape: {dynamic_selection_feats.size()}")
+                        logger.debug(f"Dynamic selection features shape: {dynamic_selection_feats.size()}")
                         dynamic_selection_mask = F.softmax(dynamic_selection_feats, dim=-2)
                         dynamic_semantic_embedding = self.semantic_head(dynamic_semantic_feats)
                         dynamic_semantic_embedding = F.normalize(dynamic_semantic_embedding, dim=-1)
@@ -661,7 +661,7 @@ class RadianceField(nn.Module):
                 else:
                     if self.sem:
                         dynamic_selection_feats = self.selection_head(dynamic_segmentation_feats)
-                        logger.info(f"Dynamic selection features shape: {dynamic_selection_feats.size()}")
+                        logger.debug(f"Dynamic selection features shape: {dynamic_selection_feats.size()}")
                         dynamic_selection_mask = F.softmax(dynamic_selection_feats, dim=-2)
                         dynamic_fast_instance_embedding = self.fast_instance_head(dynamic_segmentation_feats)
                         dynamic_slow_instance_embedding = self.slow_instance_head(dynamic_segmentation_feats)
@@ -1183,6 +1183,6 @@ def compute_SRMR(vis_feature: Tensor, clip_text_features: Tensor, sam2_masks: Te
         most_common_element = most_common_element - 1  # Adjust back to zero index
         sam_refined_pred[cur_mask] = most_common_element  
     
-    logger.info(f"SRMR: {sam_refined_pred.size()}, {sam_refined_pred.device}")
+    logger.debug(f"SRMR: {sam_refined_pred.size()}, {sam_refined_pred.device}")
     
     return sam_refined_pred

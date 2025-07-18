@@ -36,7 +36,7 @@ from islnerf_utils.misc import NumpyEncoder
 
 DEFAULT_TRANSITIONS = (15, 6, 4, 11, 13, 6)
 
-logger = logging.getLogger()
+logger = logging.getLogger(__name__)
 turbo_cmap = cm.get_cmap("turbo")
 
 

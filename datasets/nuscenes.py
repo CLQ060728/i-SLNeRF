@@ -22,7 +22,7 @@ from datasets.utils import voxel_coords_to_world_coords
 from radiance_fields.video_utils import save_videos, depth_visualizer
 from islnerf_utils.misc import NumpyEncoder
 
-logger = logging.getLogger()
+logger = logging.getLogger(__name__)
 
 
 class NuScenesPixelSource(ScenePixelSource):

@@ -17,7 +17,7 @@ from radiance_fields import (
 )
 from third_party.nerfacc_prop_net import PropNetEstimator
 
-logger = logging.getLogger()
+logger = logging.getLogger(__name__)
 
 
 def build_model_from_cfg(

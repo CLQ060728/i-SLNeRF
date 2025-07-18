@@ -15,7 +15,7 @@ from torch import Tensor
 from tqdm import tqdm
 from pathlib import Path
 
-logger = logging.getLogger()
+logger = logging.getLogger(__name__)
 
 
 def idx_to_3d(idx, H, W):
@@ -327,21 +327,21 @@ class ScenePixelSource(abc.ABC):
         if not self.data_cfg.load_segmentation:
             return
         
+        clip_text_file_path = os.path.join(os.path.dirname(self.clip_feature_filepaths[0]),
+                                           "scene_classes_features.pt")
+        self.clip_text_features = torch.load(clip_text_file_path, weights_only=True)
         clip_vis_features = []
         for fname in tqdm(
             self.clip_feature_filepaths, desc="Loading CLIP features", dynamic_ncols=True
         ):
-            if Path(fname).stem == "scene_classes_features":
-                self.clip_text_features = torch.load(fname, weights_only=True)
-            else:
-                clip_vis_feature = torch.load(fname, weights_only=True)
-                clip_vis_template_feature = torch.zeros(clip_vis_feature.size(0),
-                                                        self.data_cfg.load_size[0],
-                                                        self.data_cfg.load_size[1],
-                                                        clip_vis_feature.size(-1))
-                clip_vis_template_feature[:, :clip_vis_feature.size(1),
-                                          :clip_vis_feature.size(2), :] = clip_vis_feature
-                clip_vis_features.append(clip_vis_template_feature)
+            clip_vis_feature = torch.load(fname, weights_only=True)
+            clip_vis_template_feature = torch.zeros(clip_vis_feature.size(0),
+                                                    self.data_cfg.load_size[0],
+                                                    self.data_cfg.load_size[1],
+                                                    clip_vis_feature.size(-1))
+            clip_vis_template_feature[:, :clip_vis_feature.size(1),
+                                        :clip_vis_feature.size(2), :] = clip_vis_feature
+            clip_vis_features.append(clip_vis_template_feature)
         self.clip_vis_features = torch.stack(clip_vis_features, dim=0)
 
         sam2_masks = []
@@ -384,6 +384,7 @@ class ScenePixelSource(abc.ABC):
             srmr_masks.append(srmr_mask_template)
         self.srmr_masks = torch.stack(srmr_masks, dim=0)
 
+        logger.info(f"self.clip_text_features size: {self.clip_text_features.size()}; dtype: {self.clip_text_features.dtype}")
         logger.info(f"self.clip_vis_features size: {self.clip_vis_features.size()}; dtype: {self.clip_vis_features.dtype}")
         logger.info(f"self.sam2_masks size: {self.sam2_masks.size()}; dtype: {self.sam2_masks.dtype}")
         logger.info(f"self.srmr_masks size: {self.srmr_masks.size()}; dtype: {self.srmr_masks.dtype}")
@@ -785,50 +786,56 @@ class ScenePixelSource(abc.ABC):
         pixel_coords = torch.stack([y / self.HEIGHT, x / self.WIDTH], dim=-1)
         if self.images is not None:
             rgb = self.images[img_idx, y, x]
-            print(f"rgb: {rgb.size()}\n")
-            print(f"img_idx: {img_idx.size()}\n")
-            print(f"y: {y.size()}\n")
-            print(f"x: {x.size()}\n")
+            logger.debug(f"rgb: {rgb.size()}")
+            logger.debug(f"img_idx: {img_idx.size()}")
+            logger.debug(f"y: {y.size()}")
+            logger.debug(f"x: {x.size()}")
         if self.sky_masks is not None:
             sky_mask = self.sky_masks[img_idx, y, x]
-            print(f"sky_mask: {sky_mask.size()}\n")
+            logger.debug(f"sky_mask: {sky_mask.size()}")
         if self.depth_maps is not None:
             depth_map = self.depth_maps[img_idx, y, x]
-            print(f"depth_map: {depth_map.size()}\n")
-        if self.clip_vis_features is not None:
-            clip_vis_feature = self.clip_vis_features[img_idx, :, y, x].to(self.device)
-            print(f"clip_vis_feature: {clip_vis_feature.size()}\n")
-            print(f"clip_vis_feature.device: {clip_vis_feature.device}\n")
-            print(f"self.clip_vis_features.size(): {self.clip_vis_features.size()}\n")
-            print(f"self.clip_vis_features.device: {self.clip_vis_features.device}\n")
-        if self.sam2_masks is not None:
-            sam2_mask = self.sam2_masks[img_idx, :, y, x].to(self.device)
-            print(f"sam2_mask: {sam2_mask.size()}\n")
-            print(f"sam2_mask.device: {sam2_mask.device}\n")
-            print(f"self.sam2_masks.size(): {self.sam2_masks.size()}\n")
-            print(f"self.sam2_masks.device: {self.sam2_masks.device}\n")
-        if self.srmr_masks is not None:
-            srmr_mask = self.srmr_masks[img_idx, y, x].to(self.device)
-            print(f"srmr_mask: {srmr_mask.size()}\n")
-            print(f"srmr_mask.device: {srmr_mask.device}\n")
-            print(f"self.srmr_masks.size(): {self.srmr_masks.size()}\n")
-            print(f"self.srmr_masks.device: {self.srmr_masks.device}\n")
+            logger.debug(f"depth_map: {depth_map.size()}")
+
         if self.instance_masks is not None:
             instance_mask = self.instance_masks[img_idx, y, x]
-            print(f"instance_mask: {instance_mask.size()}\n")
+            logger.debug(f"instance_mask: {instance_mask.size()}")
         if self.instance_confidences is not None:
             instance_confidence = self.instance_confidences[img_idx, y, x]
-            print(f"instance_confidence: {instance_confidence.size()}\n")
+            logger.debug(f"instance_confidence: {instance_confidence.size()}")
         if self.normalized_timestamps is not None:
             normalized_timestamps = self.normalized_timestamps[img_idx]
         if self.cam_ids is not None:
             camera_id = self.cam_ids[img_idx]
         image_id = torch.ones_like(x) * img_idx
-        print(f"image_id: {image_id.size()}\n")
+        logger.info(f"image_id: {image_id.size()}")
         c2w = self.cam_to_worlds[img_idx]
-        print(f"c2w: {c2w.size()}\n")
+        logger.info(f"c2w: {c2w.size()}")
         intrinsics = self.intrinsics[img_idx]
         origins, viewdirs, direction_norm = get_rays(x, y, c2w, intrinsics)
+
+        img_dix_cpu = img_idx.cpu()
+        y_cpu = y.cpu()
+        x_cpu = x.cpu()
+        if self.clip_vis_features is not None:
+            clip_vis_feature = self.clip_vis_features[img_dix_cpu, :, y_cpu, x_cpu].to(self.device)
+            logger.debug(f"clip_vis_feature: {clip_vis_feature.size()}")
+            logger.debug(f"clip_vis_feature.device: {clip_vis_feature.device}")
+            logger.debug(f"self.clip_vis_features.size(): {self.clip_vis_features.size()}")
+            logger.debug(f"self.clip_vis_features.device: {self.clip_vis_features.device}")
+        if self.sam2_masks is not None:
+            sam2_mask = self.sam2_masks[img_dix_cpu, :, y_cpu, x_cpu].to(self.device)
+            logger.debug(f"sam2_mask: {sam2_mask.size()}")
+            logger.debug(f"sam2_mask.device: {sam2_mask.device}")
+            logger.debug(f"self.sam2_masks.size(): {self.sam2_masks.size()}")
+            logger.debug(f"self.sam2_masks.device: {self.sam2_masks.device}")
+        if self.srmr_masks is not None:
+            srmr_mask = self.srmr_masks[img_dix_cpu, y_cpu, x_cpu].to(self.device)
+            logger.debug(f"srmr_mask: {srmr_mask.size()}")
+            logger.debug(f"srmr_mask.device: {srmr_mask.device}")
+            logger.debug(f"self.srmr_masks.size(): {self.srmr_masks.size()}")
+            logger.debug(f"self.srmr_masks.device: {self.srmr_masks.device}")
+
         data = {
             "origins": origins,
             "viewdirs": viewdirs,
