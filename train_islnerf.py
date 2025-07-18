@@ -990,7 +990,7 @@ def compute_srmr_loss(semantic_train_data_dict, semantic_train_render_results, s
     relevancy_map = get_relevancy_map(semantic_feat, clip_text_features)  # [num_rays, num_classes]
     semantic_loss_dict.update(srmr_loss_fn(
         relevancy_map=relevancy_map,
-        srmr_feat=srmr_feat
+        srmr_mask=srmr_feat
         )
     )
 
@@ -1099,8 +1099,15 @@ def compute_segmentation_loss(cfg, step, dataset, model, dino_extractor, proposa
                 cfg=cfg,
                 proposal_requires_grad=proposal_requires_grad
             )
+            proposal_estimator.update_every_n_steps(
+                semantic_pixel_render_results["extras"]["trans"],
+                proposal_requires_grad,
+                loss_scaler=1024,
+            )
             
+            logger.debug(f"semantic_loss_dict keys before popping srmr_loss: {semantic_loss_dict.keys()}")
             semantic_loss_dict.pop("srmr_loss")
+            logger.debug(f"semantic_loss_dict keys after popping srmr_loss: {semantic_loss_dict.keys()}")
             # compute CVSC loss
             compute_cvsc_loss(semantic_train_data_dict, semantic_train_render_results,
                               semantic_pixel_data_dict, semantic_pixel_render_results,
@@ -1113,8 +1120,8 @@ def compute_segmentation_loss(cfg, step, dataset, model, dino_extractor, proposa
         scheduler.step()
         
         # compute instance consistency loss
+        total_instance_loss = 0
         if step > cfg.supervision.segmentation.instance.start_iter:
-            total_instance_loss = 0
             if cfg.nerf.model.head.split_semantic_instance:
                 i = torch.randint(0, len(dataset.train_pixel_set), (1,)).item()
                 ins_pixel_data_dict = dataset.train_pixel_set[i]
@@ -1130,6 +1137,11 @@ def compute_segmentation_loss(cfg, step, dataset, model, dino_extractor, proposa
                     cfg=cfg,
                     proposal_requires_grad=proposal_requires_grad
                 )
+                proposal_estimator.update_every_n_steps(
+                    ins_render_results["extras"]["trans"],
+                    proposal_requires_grad,
+                    loss_scaler=1024,
+                )
             else:
                 i = torch.randint(0, len(dataset.semantic_train_set), (1,)).item()
                 ins_pixel_data_dict = dataset.semantic_train_set[i]
@@ -1144,6 +1156,11 @@ def compute_segmentation_loss(cfg, step, dataset, model, dino_extractor, proposa
                     data_dict=ins_pixel_data_dict,
                     cfg=cfg,
                     proposal_requires_grad=proposal_requires_grad
+                )
+                proposal_estimator.update_every_n_steps(
+                    ins_render_results["extras"]["trans"],
+                    proposal_requires_grad,
+                    loss_scaler=1024,
                 )
             
             model.ema_update_slownet()
