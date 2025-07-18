@@ -20,7 +20,7 @@ from datasets.base.scene_dataset import SceneDataset
 from datasets.base.split_wrapper import SplitWrapper
 from datasets.utils import voxel_coords_to_world_coords
 from radiance_fields.video_utils import save_videos, depth_visualizer
-from utils.misc import NumpyEncoder
+from islnerf_utils.misc import NumpyEncoder
 
 logger = logging.getLogger()
 

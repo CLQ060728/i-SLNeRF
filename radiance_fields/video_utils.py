@@ -18,8 +18,8 @@ from datasets.metrics import compute_psnr, compute_valid_depth_rmse
 from radiance_fields.radiance_field import DensityField, RadianceField
 from radiance_fields.render_utils import render_rays
 from third_party.nerfacc_prop_net import PropNetEstimator
-from utils.misc import get_robust_pca
-from utils.visualization_tools import (
+from islnerf_utils.misc import get_robust_pca
+from islnerf_utils.visualization_tools import (
     resize_five_views,
     scene_flow_to_rgb,
     to8b,

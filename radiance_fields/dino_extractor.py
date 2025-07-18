@@ -7,14 +7,12 @@ import torch.nn.functional as F
 from transformers import ViTModel
 
 class DINOVitExtractor(nn.Module):
-    def __init__(self, model_name, device, usev2=True):
+    def __init__(self, model_name, device, usev2=False):
         super().__init__()
         
         if usev2:
-            # self.model = torch.hub.load('facebookresearch/dinov2', model_name,
-            #     force_reload=True).to(device)
-            self.model = ViTModel.from_pretrained(f'facebook/{model_name}', force_download=True,
-                use_safetensors=True).to(device)
+            self.model = torch.hub.load('facebookresearch/dinov2', model_name,
+                force_reload=True).to(device)
         else:
             self.model = torch.hub.load('facebookresearch/dino:main', model_name,
                 force_reload=True).to(device)

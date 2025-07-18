@@ -18,7 +18,7 @@ from tqdm import tqdm
 
 import builders
 import loss
-import utils.misc as misc
+import islnerf_utils.misc as misc
 import wandb
 from datasets import metrics
 from datasets.base import SceneDataset
@@ -27,8 +27,8 @@ from radiance_fields.dino_extractor import DINOVitExtractor
 from radiance_fields.render_utils import render_rays, render_semantic_rays
 from radiance_fields.video_utils import render_pixels, save_videos
 from third_party.nerfacc_prop_net import PropNetEstimator, get_proposal_requires_grad_fn
-from utils.logging import MetricLogger, setup_logging
-from utils.visualization_tools import visualize_scene_flow
+from islnerf_utils.logging import MetricLogger, setup_logging
+from islnerf_utils.visualization_tools import visualize_scene_flow
 
 logger = logging.getLogger()
 current_time = time.strftime("%Y-%m-%d_%H-%M-%S", time.localtime())
@@ -426,7 +426,7 @@ def construct_training_objects(cfg, dataset, device):
     model = builders.build_model_from_cfg(
         cfg=cfg.nerf.model, dataset=dataset, device=device
     )
-    dino_extractor = DINOVitExtractor(model_name='dino-vitb8', device=device)
+    dino_extractor = DINOVitExtractor(model_name='dino_vitb8', device=device)
     logger.info(f"PropNetEstimator: {proposal_networks}")
     logger.info(f"Model: {model}")
 

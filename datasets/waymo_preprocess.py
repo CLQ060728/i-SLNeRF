@@ -23,8 +23,8 @@ from waymo_open_dataset.utils.frame_utils import parse_range_image_and_camera_pr
 from waymo_open_dataset.wdl_limited.camera.ops import py_camera_model_ops
 
 from datasets.utils import get_ground_np
-from utils.mmcv_dummy import track_parallel_progress
-from utils.visualization_tools import visualize_depth
+from islnerf_utils.mmcv_dummy import track_parallel_progress
+from islnerf_utils.visualization_tools import visualize_depth
 
 depth_visualizer = lambda frame, opacity: visualize_depth(
     frame,
