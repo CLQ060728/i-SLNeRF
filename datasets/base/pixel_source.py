@@ -867,8 +867,8 @@ class ScenePixelSource(abc.ABC):
             a dict containing the rays for rendering the given image index.
         """
         rgb, sky_mask, depth_map = None, None, None
-        clip_vis_feature, sam2_mask, srmr_mask = None, None, None
-        instance_mask, instance_confidence = None, None
+        # clip_vis_feature, sam2_mask, srmr_mask = None, None, None
+        # instance_mask, instance_confidence = None, None
         pixel_coords, normalized_timestamps = None, None
         if self.images is not None:
             rgb = self.images[img_idx]
@@ -926,8 +926,8 @@ class ScenePixelSource(abc.ABC):
                     .squeeze(0)
                     .squeeze(0)
                 )
-        if self.clip_vis_features is not None:
-            clip_vis_feature = self.clip_vis_features[img_idx]
+        # if self.clip_vis_features is not None:
+        #     clip_vis_feature = self.clip_vis_features[img_idx]
             # if self.downscale_factor != 1.0:
             #     clip_vis_feature = (
             #         torch.nn.functional.interpolate(
@@ -938,8 +938,8 @@ class ScenePixelSource(abc.ABC):
             #         .squeeze(0)
             #         .squeeze(0)
             #     )
-        if self.sam2_masks is not None:
-            sam2_mask = self.sam2_masks[img_idx]
+        # if self.sam2_masks is not None:
+        #     sam2_mask = self.sam2_masks[img_idx]
             # if self.downscale_factor != 1.0:
             #     sam2_mask = (
             #         torch.nn.functional.interpolate(
@@ -950,8 +950,8 @@ class ScenePixelSource(abc.ABC):
             #         .squeeze(0)
             #         .squeeze(0)
             #     )
-        if self.srmr_masks is not None:
-            srmr_mask = self.srmr_masks[img_idx]
+        # if self.srmr_masks is not None:
+        #     srmr_mask = self.srmr_masks[img_idx]
             # if self.downscale_factor != 1.0:
             #     srmr_mask = (
             #         torch.nn.functional.interpolate(
@@ -962,30 +962,30 @@ class ScenePixelSource(abc.ABC):
             #         .squeeze(0)
             #         .squeeze(0)
             #     )
-        if self.instance_masks is not None:
-            instance_mask = self.instance_masks[img_idx]
-            if self.downscale_factor != 1.0:
-                instance_mask = (
-                    torch.nn.functional.interpolate(
-                        instance_mask.unsqueeze(0).unsqueeze(0),
-                        scale_factor=self.downscale_factor,
-                        mode="nearest",
-                    )
-                    .squeeze(0)
-                    .squeeze(0)
-                )
-        if self.instance_confidences is not None:
-            instance_confidence = self.instance_confidences[img_idx]
-            if self.downscale_factor != 1.0:
-                instance_confidence = (
-                    torch.nn.functional.interpolate(
-                        instance_confidence.unsqueeze(0).unsqueeze(0),
-                        scale_factor=self.downscale_factor,
-                        mode="nearest",
-                    )
-                    .squeeze(0)
-                    .squeeze(0)
-                )
+        # if self.instance_masks is not None:
+        #     instance_mask = self.instance_masks[img_idx]
+        #     if self.downscale_factor != 1.0:
+        #         instance_mask = (
+        #             torch.nn.functional.interpolate(
+        #                 instance_mask.unsqueeze(0).unsqueeze(0),
+        #                 scale_factor=self.downscale_factor,
+        #                 mode="nearest",
+        #             )
+        #             .squeeze(0)
+        #             .squeeze(0)
+        #         )
+        # if self.instance_confidences is not None:
+        #     instance_confidence = self.instance_confidences[img_idx]
+        #     if self.downscale_factor != 1.0:
+        #         instance_confidence = (
+        #             torch.nn.functional.interpolate(
+        #                 instance_confidence.unsqueeze(0).unsqueeze(0),
+        #                 scale_factor=self.downscale_factor,
+        #                 mode="nearest",
+        #             )
+        #             .squeeze(0)
+        #             .squeeze(0)
+        #         )
 
         if self.normalized_timestamps is not None:
             normalized_timestamps = torch.full(
@@ -1021,14 +1021,15 @@ class ScenePixelSource(abc.ABC):
             "cam_idx": camera_id,
             "pixels": rgb,
             "sky_masks": sky_mask,
-            "depth_maps": depth_map,
-            "clip_text_features": self.clip_text_features,
-            "clip_vis_features": clip_vis_feature,
-            "sam2_masks": sam2_mask,
-            "srmr_masks": srmr_mask,
-            "instance_masks": instance_mask,
-            "instance_confidences": instance_confidence
+            "depth_maps": depth_map
         }
+        # "clip_text_features": self.clip_text_features,
+        # "clip_vis_features": clip_vis_feature,
+        # "sam2_masks": sam2_mask,
+        # "srmr_masks": srmr_mask,
+        # "instance_masks": instance_mask,
+        # "instance_confidences": instance_confidence
+        #
         return {k: v for k, v in data.items() if v is not None}
 
     @property
