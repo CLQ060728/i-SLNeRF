@@ -165,7 +165,7 @@ def setup(args):
     misc.fix_random_seeds(cfg.optim.seed)
 
     global logger
-    setup_logging(output=log_dir, level=logging.DEBUG, time_string=current_time)
+    setup_logging(output=log_dir, level=logging.INFO, time_string=current_time)
     logger.info(
         "\n".join("%s: %s" % (k, str(v)) for k, v in sorted(dict(vars(args)).items()))
     )
@@ -1085,6 +1085,7 @@ def compute_segmentation_loss(cfg, step, dataset, model, dino_extractor, proposa
             #compute SRMR loss
             compute_srmr_loss(semantic_train_data_dict, semantic_train_render_results,
                               srmr_loss_fn, semantic_loss_dict)
+            # logger.debug(f"semantic_loss_dict after compute SRMR loss: {semantic_loss_dict}")
         else:
             i = torch.randint(0, len(dataset.semantic_pixel_set), (1,)).item()
             semantic_pixel_data_dict = dataset.semantic_pixel_set[i]
@@ -1105,14 +1106,13 @@ def compute_segmentation_loss(cfg, step, dataset, model, dino_extractor, proposa
                 proposal_requires_grad,
                 loss_scaler=1024,
             )
-            
-            logger.debug(f"semantic_loss_dict keys before popping srmr_loss: {semantic_loss_dict.keys()}")
-            semantic_loss_dict.pop("srmr_loss")
-            logger.debug(f"semantic_loss_dict keys after popping srmr_loss: {semantic_loss_dict.keys()}")
             # compute CVSC loss
             compute_cvsc_loss(semantic_train_data_dict, semantic_train_render_results,
                               semantic_pixel_data_dict, semantic_pixel_render_results,
                               cvsc_loss_fn, semantic_loss_dict)
+            # logger.info(f"semantic_loss_dict after compute CVSC loss: {semantic_loss_dict}")
+            semantic_loss_dict["srmr_loss"] = torch.tensor([0]).float().to(model.device)
+            # logger.info(f"semantic_loss_dict after setting srmr_loss to 0: {semantic_loss_dict}")
 
         total_semantic_loss = sum(loss for loss in semantic_loss_dict.values())
         optimizer.zero_grad()

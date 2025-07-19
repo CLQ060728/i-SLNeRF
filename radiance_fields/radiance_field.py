@@ -617,7 +617,7 @@ class RadianceField(nn.Module):
                 # split semantic and instance branches
                 if self.sem:
                     selection_feats = self.selection_head(semantic_feats)
-                    logger.info(f"Selection features shape: {selection_feats.size()}")
+                    logger.debug(f"Selection features shape: {selection_feats.size()}")
                     selection_mask = F.softmax(selection_feats, dim=-2)
                     semantic_embedding = self.semantic_head(semantic_feats)
                     semantic_embedding = F.normalize(semantic_embedding, dim=-1)
@@ -631,7 +631,7 @@ class RadianceField(nn.Module):
                 # shared branch for semantic and instance
                 if self.sem:
                     selection_feats = self.selection_head(segmentation_feats)
-                    logger.info(f"Selection features shape: {selection_feats.size()}")
+                    logger.debug(f"Selection features shape: {selection_feats.size()}")
                     selection_mask = F.softmax(selection_feats, dim=-2)
                     fast_instance_embedding = self.fast_instance_head(segmentation_feats)
                     slow_instance_embedding = self.slow_instance_head(segmentation_feats)

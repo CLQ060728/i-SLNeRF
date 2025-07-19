@@ -468,24 +468,27 @@ class WaymoDataset(SceneDataset):
                 logger.info(f"Number of semantic pixel indices: {len(self.semantic_pixel_indices)}")
                 logger.info(f"Semantic pixel indices: {self.semantic_pixel_indices}")
             else:
-                num_semantic_indices = int(0.1 * len(self.train_indices))
-                random_indices = torch.randint(
-                    0,
-                    len(self.train_indices),
-                    size=(num_semantic_indices,)
+                num_pixel_indices = int(0.1 * len(self.train_indices))
+                # random_indices = torch.randint(
+                #     0,
+                #     len(self.train_indices),
+                #     size=(num_semantic_indices,)
+                # )
+                random_pixel_indices = torch.tensor(self.train_indices).float()
+                random_indices = torch.multinomial(
+                    random_pixel_indices, num_samples=num_pixel_indices, replacement=False
                 )
-                random_semantic_indices = torch.tensor(self.train_indices).int()
-                random_semantic_indices = random_semantic_indices[random_indices].tolist()
+                random_pixel_indices = random_pixel_indices[random_indices].int().tolist()
                 semantic_pixel_set = SplitWrapper(
                     datasource=self.pixel_source,
                     # semantic indices are img indices
-                    split_indices=random_semantic_indices,
+                    split_indices=random_pixel_indices,
                     split="semantic",
                     ray_batch_size=self.data_cfg.ray_batch_size
                 )
                 random_train_indices = []
                 for train_idx in self.train_indices:
-                    if train_idx not in random_semantic_indices:
+                    if train_idx not in random_pixel_indices:
                         random_train_indices.append(train_idx)
                 semantic_train_set = SplitWrapper(
                     datasource=self.pixel_source,
@@ -494,7 +497,7 @@ class WaymoDataset(SceneDataset):
                     split="semantic",
                     ray_batch_size=self.data_cfg.ray_batch_size
                 )
-                self.semantic_pixel_indices = random_semantic_indices
+                self.semantic_pixel_indices = random_pixel_indices
                 self.semantic_train_indices = random_train_indices
                 logger.info(f"Number of semantic train indices: {len(self.semantic_train_indices)}")
                 logger.info(f"Semantic train indices: {self.semantic_train_indices}")

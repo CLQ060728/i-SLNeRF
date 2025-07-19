@@ -180,20 +180,20 @@ class ScenePixelSource(abc.ABC):
             device: the device to move the dataset to.
         """
         self.device = device
-        if self.images is not None:
-            self.images = self.images.to(device)
-        if self.sky_masks is not None:
-            self.sky_masks = self.sky_masks.to(device)
-        if self.depth_maps is not None:
-            self.depth_maps = self.depth_maps.to(device)
+        # if self.images is not None:
+        #     self.images = self.images.to(device)
+        # if self.sky_masks is not None:
+        #     self.sky_masks = self.sky_masks.to(device)
+        # if self.depth_maps is not None:
+        #     self.depth_maps = self.depth_maps.to(device)
         # if self.semantic_masks is not None:
             # self.semantic_masks = self.semantic_masks.to(device)
         if self.clip_text_features is not None:
             self.clip_text_features = self.clip_text_features.to(device)
-        if self.instance_masks is not None:
-            self.instance_masks = self.instance_masks.to(device)
-        if self.instance_confidences is not None:
-            self.instance_confidences = self.instance_confidences.to(device)
+        # if self.instance_masks is not None:
+        #     self.instance_masks = self.instance_masks.to(device)
+        # if self.instance_confidences is not None:
+        #     self.instance_confidences = self.instance_confidences.to(device)
         if self.cam_to_worlds is not None:
             self.cam_to_worlds = self.cam_to_worlds.to(device)
         if self.intrinsics is not None:
@@ -688,10 +688,10 @@ class ScenePixelSource(abc.ABC):
 
         # Add a random offset to avoid sampling the same pixel
         y += torch.randint(
-            0, self.buffer_downscale, (num_rays,), device=self.images.device
+            0, self.buffer_downscale, (num_rays,), device=self.device
         )
         x += torch.randint(
-            0, self.buffer_downscale, (num_rays,), device=self.images.device
+            0, self.buffer_downscale, (num_rays,), device=self.device
         )
         # Clamp to ensure coordinates don't exceed the image bounds
         y = torch.clamp(y, 0, self.HEIGHT - 1)
@@ -784,53 +784,55 @@ class ScenePixelSource(abc.ABC):
                 num_rays=num_rays, img_candidate_indices=candidate_indices
             )
         pixel_coords = torch.stack([y / self.HEIGHT, x / self.WIDTH], dim=-1)
+
+        img_idx_cpu = img_idx.cpu()
+        y_cpu = y.cpu()
+        x_cpu = x.cpu()
         if self.images is not None:
-            rgb = self.images[img_idx, y, x]
+            rgb = self.images[img_idx_cpu, y_cpu, x_cpu].to(self.device)
             logger.debug(f"rgb: {rgb.size()}")
             logger.debug(f"img_idx: {img_idx.size()}")
             logger.debug(f"y: {y.size()}")
             logger.debug(f"x: {x.size()}")
         if self.sky_masks is not None:
-            sky_mask = self.sky_masks[img_idx, y, x]
+            sky_mask = self.sky_masks[img_idx_cpu, y_cpu, x_cpu].to(self.device)
             logger.debug(f"sky_mask: {sky_mask.size()}")
-        if self.depth_maps is not None:
-            depth_map = self.depth_maps[img_idx, y, x]
-            logger.debug(f"depth_map: {depth_map.size()}")
-
-        if self.instance_masks is not None:
-            instance_mask = self.instance_masks[img_idx, y, x]
-            logger.debug(f"instance_mask: {instance_mask.size()}")
-        if self.instance_confidences is not None:
-            instance_confidence = self.instance_confidences[img_idx, y, x]
-            logger.debug(f"instance_confidence: {instance_confidence.size()}")
+        
         if self.normalized_timestamps is not None:
             normalized_timestamps = self.normalized_timestamps[img_idx]
         if self.cam_ids is not None:
             camera_id = self.cam_ids[img_idx]
         image_id = torch.ones_like(x) * img_idx
-        logger.info(f"image_id: {image_id.size()}")
+        logger.debug(f"image_id: {image_id.size()}")
         c2w = self.cam_to_worlds[img_idx]
-        logger.info(f"c2w: {c2w.size()}")
+        logger.debug(f"c2w: {c2w.size()}")
         intrinsics = self.intrinsics[img_idx]
         origins, viewdirs, direction_norm = get_rays(x, y, c2w, intrinsics)
 
-        img_dix_cpu = img_idx.cpu()
-        y_cpu = y.cpu()
-        x_cpu = x.cpu()
+        # load depth and semantic related data
+        if self.depth_maps is not None:
+            depth_map = self.depth_maps[img_idx_cpu, y_cpu, x_cpu].to(self.device)
+            logger.debug(f"depth_map: {depth_map.size()}")
+        if self.instance_masks is not None:
+            instance_mask = self.instance_masks[img_idx_cpu, y_cpu, x_cpu].to(self.device)
+            logger.debug(f"instance_mask: {instance_mask.size()}")
+        if self.instance_confidences is not None:
+            instance_confidence = self.instance_confidences[img_idx_cpu, y_cpu, x_cpu].to(self.device)
+            logger.debug(f"instance_confidence: {instance_confidence.size()}")
         if self.clip_vis_features is not None:
-            clip_vis_feature = self.clip_vis_features[img_dix_cpu, :, y_cpu, x_cpu].to(self.device)
+            clip_vis_feature = self.clip_vis_features[img_idx_cpu, :, y_cpu, x_cpu].to(self.device)
             logger.debug(f"clip_vis_feature: {clip_vis_feature.size()}")
             logger.debug(f"clip_vis_feature.device: {clip_vis_feature.device}")
             logger.debug(f"self.clip_vis_features.size(): {self.clip_vis_features.size()}")
             logger.debug(f"self.clip_vis_features.device: {self.clip_vis_features.device}")
         if self.sam2_masks is not None:
-            sam2_mask = self.sam2_masks[img_dix_cpu, :, y_cpu, x_cpu].to(self.device)
+            sam2_mask = self.sam2_masks[img_idx_cpu, :, y_cpu, x_cpu].to(self.device)
             logger.debug(f"sam2_mask: {sam2_mask.size()}")
             logger.debug(f"sam2_mask.device: {sam2_mask.device}")
             logger.debug(f"self.sam2_masks.size(): {self.sam2_masks.size()}")
             logger.debug(f"self.sam2_masks.device: {self.sam2_masks.device}")
         if self.srmr_masks is not None:
-            srmr_mask = self.srmr_masks[img_dix_cpu, y_cpu, x_cpu].to(self.device)
+            srmr_mask = self.srmr_masks[img_idx_cpu, y_cpu, x_cpu].to(self.device)
             logger.debug(f"srmr_mask: {srmr_mask.size()}")
             logger.debug(f"srmr_mask.device: {srmr_mask.device}")
             logger.debug(f"self.srmr_masks.size(): {self.srmr_masks.size()}")

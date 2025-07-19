@@ -721,7 +721,7 @@ class SRMRLoss(Loss):
         Returns:
             dict: A dictionary containing the loss value.
         """
-        loss = self.loss_fn(relevancy_map, srmr_mask, reduction="none")
+        loss = self.loss_fn(relevancy_map, srmr_mask, reduction="none", label_smoothing=0.1)
         
         name = self.name if name is None else name
         
@@ -764,8 +764,9 @@ class CVSCLoss(Loss):
         Returns:
             Tensor: The computed srmat loss value.
         """
-        loss = F.cross_entropy(relevancy_map_train, srmr_mask_train, reduction="none")
-        
+        loss = F.cross_entropy(relevancy_map_train, srmr_mask_train, reduction="none",
+                               label_smoothing=0.1)
+
         return loss.mean()
 
     def get_srman_loss(
@@ -783,7 +784,8 @@ class CVSCLoss(Loss):
         Returns:
             Tensor: The computed srman loss value.
         """
-        loss = F.cross_entropy(relevancy_map_pixel, srmr_mask_pixel, reduction="none")
+        loss = F.cross_entropy(relevancy_map_pixel, srmr_mask_pixel, reduction="none",
+                               label_smoothing=0.1)
         
         return loss.mean()
 
