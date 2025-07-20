@@ -1119,7 +1119,14 @@ def compute_segmentation_loss(cfg, step, dataset, model, dino_extractor, proposa
         semantic_grad_scaler.scale(total_semantic_loss).backward()
         optimizer.step()
         scheduler.step()
-        
+
+        if step > cfg.supervision.segmentation.semantic.cvsc.start_iter:
+            del semantic_pixel_data_dict
+            del semantic_pixel_render_results
+        del semantic_train_data_dict
+        del semantic_train_render_results
+        torch.cuda.empty_cache()
+
         # compute instance consistency loss
         total_instance_loss = 0
         if step > cfg.supervision.segmentation.instance.start_iter:
@@ -1179,6 +1186,9 @@ def compute_segmentation_loss(cfg, step, dataset, model, dino_extractor, proposa
             optimizer.step()
             scheduler.step()
 
+            del semantic_train_data_dict
+            del semantic_train_render_results
+            torch.cuda.empty_cache()
     else:
         total_semantic_loss = 0
         total_instance_loss = 0
