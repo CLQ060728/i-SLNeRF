@@ -1,4 +1,3 @@
---extra-index-url https://download.pytorch.org/whl/cu121
 pip install --upgrade torch==2.1.0
 pip install --upgrade -r requirements.txt
 pip install git+https://github.com/NVlabs/tiny-cuda-nn/#subdirectory=bindings/torch
