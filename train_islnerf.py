@@ -1144,25 +1144,25 @@ def compute_segmentation_loss(cfg, step, dataset, model, dino_extractor, proposa
             #         loss_scaler=1024,
             #     )
             # else:
-            #     i = torch.randint(0, len(dataset.semantic_train_set), (1,)).item()
-            #     ins_pixel_data_dict = dataset.semantic_train_set[i]
-            #     for k, v in ins_pixel_data_dict.items():
-            #         if isinstance(v, torch.Tensor):
-            #             ins_pixel_data_dict[k] = v.cuda(non_blocking=True)
-            #     # ------ pixel-wise supervision -------- #
-            #     ins_render_results = render_semantic_rays(
-            #         radiance_field=model,
-            #         proposal_estimator=proposal_estimator,
-            #         proposal_networks=proposal_networks,
-            #         data_dict=ins_pixel_data_dict,
-            #         cfg=cfg,
-            #         proposal_requires_grad=proposal_requires_grad
-            #     )
-            #     proposal_estimator.update_every_n_steps(
-            #         ins_render_results["extras"]["trans"],
-            #         proposal_requires_grad,
-            #         loss_scaler=1024,
-            #     )
+            i = torch.randint(0, len(dataset.semantic_train_set), (1,)).item()
+            semantic_train_data_dict = dataset.semantic_train_set[i]
+            for k, v in semantic_train_data_dict.items():
+                if isinstance(v, torch.Tensor):
+                    semantic_train_data_dict[k] = v.cuda(non_blocking=True)
+            # ------ pixel-wise supervision -------- #
+            semantic_train_render_results = render_semantic_rays(
+                radiance_field=model,
+                proposal_estimator=proposal_estimator,
+                proposal_networks=proposal_networks,
+                data_dict=semantic_train_data_dict,
+                cfg=cfg,
+                proposal_requires_grad=proposal_requires_grad
+            )
+            proposal_estimator.update_every_n_steps(
+                semantic_train_render_results["extras"]["trans"],
+                proposal_requires_grad,
+                loss_scaler=1024
+            )
             
             model.ema_update_slownet()
             instance_loss_dict.update(instance_consistency_loss_fn(
