@@ -181,49 +181,49 @@ class RadianceField(nn.Module):
                 hidden_dims=head_mlp_layer_width,
                 skip_connections=[1],
             )
-            if enable_segmentation_heads:
-                if split_semantic_instance:
-                    # split semantic and instance branches
-                    self.semantic_sky_head = nn.Sequential(
-                        nn.Linear(
-                            self.direction_encoding.n_output_dims,
-                            semantic_hidden_dim,
-                        ),
-                        nn.ReLU(),
-                        nn.Linear(semantic_hidden_dim, semantic_hidden_dim * 2),
-                        nn.ReLU(),
-                        nn.Linear(semantic_hidden_dim * 2, semantic_embedding_dim)
-                    )
-                    self.instance_sky_head = nn.Sequential(
-                        nn.Linear(
-                            self.direction_encoding.n_output_dims,
-                            instance_hidden_dim,
-                        ),
-                        nn.ReLU(),
-                        nn.Linear(instance_hidden_dim, instance_hidden_dim * 2),
-                        nn.ReLU(),
-                        nn.Linear(instance_hidden_dim * 2, instance_embedding_dim)
-                    )
-                else:
-                    # shared branch for semantic and instance
-                    self.instance_sky_head = nn.Sequential(
-                        nn.Linear(
-                            self.direction_encoding.n_output_dims,
-                            instance_hidden_dim,
-                        ),
-                        nn.ReLU(),
-                        nn.Linear(instance_hidden_dim, instance_hidden_dim * 2),
-                        nn.ReLU(),
-                        nn.Linear(instance_hidden_dim * 2, instance_embedding_dim)
-                    )
-                    self.semantic_sky_head = nn.Sequential(
-                        nn.Linear(
-                            instance_embedding_dim,
-                            semantic_hidden_dim,
-                        ),
-                        nn.ReLU(),
-                        nn.Linear(semantic_hidden_dim, semantic_embedding_dim)
-                    )
+            # if enable_segmentation_heads:
+            #     if split_semantic_instance:
+            #         # split semantic and instance branches
+            #         self.semantic_sky_head = nn.Sequential(
+            #             nn.Linear(
+            #                 self.direction_encoding.n_output_dims,
+            #                 semantic_hidden_dim,
+            #             ),
+            #             nn.ReLU(),
+            #             nn.Linear(semantic_hidden_dim, semantic_hidden_dim * 2),
+            #             nn.ReLU(),
+            #             nn.Linear(semantic_hidden_dim * 2, semantic_embedding_dim)
+            #         )
+            #         self.instance_sky_head = nn.Sequential(
+            #             nn.Linear(
+            #                 self.direction_encoding.n_output_dims,
+            #                 instance_hidden_dim,
+            #             ),
+            #             nn.ReLU(),
+            #             nn.Linear(instance_hidden_dim, instance_hidden_dim * 2),
+            #             nn.ReLU(),
+            #             nn.Linear(instance_hidden_dim * 2, instance_embedding_dim)
+            #         )
+            #     else:
+            #         # shared branch for semantic and instance
+            #         self.instance_sky_head = nn.Sequential(
+            #             nn.Linear(
+            #                 self.direction_encoding.n_output_dims,
+            #                 instance_hidden_dim,
+            #             ),
+            #             nn.ReLU(),
+            #             nn.Linear(instance_hidden_dim, instance_hidden_dim * 2),
+            #             nn.ReLU(),
+            #             nn.Linear(instance_hidden_dim * 2, instance_embedding_dim)
+            #         )
+            #         self.semantic_sky_head = nn.Sequential(
+            #             nn.Linear(
+            #                 instance_embedding_dim,
+            #                 semantic_hidden_dim,
+            #             ),
+            #             nn.ReLU(),
+            #             nn.Linear(semantic_hidden_dim, semantic_embedding_dim)
+            #         )
 
         # ======== Segmentation Head ======== #
         self.enable_segmentation_heads = enable_segmentation_heads
@@ -621,7 +621,6 @@ class RadianceField(nn.Module):
                     selection_mask = F.softmax(selection_feats, dim=-2)
                     semantic_embedding = self.semantic_head(semantic_feats)
                     semantic_embedding = F.normalize(semantic_embedding, dim=-1)
-                else:
                     fast_instance_embedding = self.fast_instance_head(instance_feats)
                     slow_instance_embedding = self.slow_instance_head(instance_feats)
                     fast_instance_embedding = F.normalize(fast_instance_embedding, dim=-1)
@@ -650,7 +649,6 @@ class RadianceField(nn.Module):
                         dynamic_selection_mask = F.softmax(dynamic_selection_feats, dim=-2)
                         dynamic_semantic_embedding = self.semantic_head(dynamic_semantic_feats)
                         dynamic_semantic_embedding = F.normalize(dynamic_semantic_embedding, dim=-1)
-                    else:
                         dynamic_fast_instance_embedding = self.fast_instance_head(dynamic_instance_feats)
                         dynamic_slow_instance_embedding = self.slow_instance_head(dynamic_instance_feats)
                         dynamic_fast_instance_embedding = F.normalize(dynamic_fast_instance_embedding, dim=-1)
@@ -675,69 +673,66 @@ class RadianceField(nn.Module):
                         dynamic_instance_embedding = torch.cat(
                             [dynamic_fast_instance_embedding, dynamic_slow_instance_embedding], dim=-1
                         )
-                if self.split_semantic_instance:
-                    if self.sem:
-                        results_dict["static_selection_mask"] = selection_mask
-                        results_dict["dynamic_selection_mask"] = dynamic_selection_mask
-                        results_dict["static_semantic_embedding"] = semantic_embedding             
-                        results_dict["dynamic_semantic_embedding"] = dynamic_semantic_embedding
-                        
-                    else:
-                        results_dict["static_instance_embedding"] = instance_embedding
-                        results_dict["dynamic_instance_embedding"] = dynamic_instance_embedding
-                else:
-                    if self.sem:
-                        results_dict["static_selection_mask"] = selection_mask
-                        results_dict["dynamic_selection_mask"] = dynamic_selection_mask
-                        results_dict["static_semantic_embedding"] = semantic_embedding             
-                        results_dict["dynamic_semantic_embedding"] = dynamic_semantic_embedding
-                        results_dict["static_instance_embedding"] = instance_embedding
-                        results_dict["dynamic_instance_embedding"] = dynamic_instance_embedding
+                # if self.split_semantic_instance:
+                if self.sem:
+                    results_dict["static_selection_mask"] = selection_mask
+                    results_dict["dynamic_selection_mask"] = dynamic_selection_mask
+                    results_dict["static_semantic_embedding"] = semantic_embedding             
+                    results_dict["dynamic_semantic_embedding"] = dynamic_semantic_embedding                       
+                    results_dict["static_instance_embedding"] = instance_embedding
+                    results_dict["dynamic_instance_embedding"] = dynamic_instance_embedding
+                # else:
+                #     if self.sem:
+                #         results_dict["static_selection_mask"] = selection_mask
+                #         results_dict["dynamic_selection_mask"] = dynamic_selection_mask
+                #         results_dict["static_semantic_embedding"] = semantic_embedding             
+                #         results_dict["dynamic_semantic_embedding"] = dynamic_semantic_embedding
+                #         results_dict["static_instance_embedding"] = instance_embedding
+                #         results_dict["dynamic_instance_embedding"] = dynamic_instance_embedding
                 
                 if combine_static_dynamic:
                     static_ratio = static_density / (density + 1e-6)
                     dynamic_ratio = dynamic_density / (density + 1e-6)
-                    if self.split_semantic_instance:
-                        if self.sem:
-                            results_dict["selection_mask"] = (
-                                static_ratio[..., None] * selection_mask
-                                + dynamic_ratio[..., None] * dynamic_selection_mask
-                            )
-                            results_dict["semantic_embedding"] = (
-                                static_ratio[..., None] * semantic_embedding
-                                + dynamic_ratio[..., None] * dynamic_semantic_embedding
-                            )
-                        else:
-                            results_dict["instance_embedding"] = (
-                                static_ratio[..., None] * instance_embedding
-                                + dynamic_ratio[..., None] * dynamic_instance_embedding
-                            )
-                    else:
-                        if self.sem:
-                            results_dict["selection_mask"] = (
-                                static_ratio[..., None] * selection_mask
-                                + dynamic_ratio[..., None] * dynamic_selection_mask
-                            )
-                            results_dict["semantic_embedding"] = (
-                                static_ratio[..., None] * semantic_embedding
-                                + dynamic_ratio[..., None] * dynamic_semantic_embedding
-                            )
-                            results_dict["instance_embedding"] = (
-                                static_ratio[..., None] * instance_embedding
-                                + dynamic_ratio[..., None] * dynamic_instance_embedding
-                            )
+                    # if self.split_semantic_instance:
+                    if self.sem:
+                        results_dict["selection_mask"] = (
+                            static_ratio[..., None] * selection_mask
+                            + dynamic_ratio[..., None] * dynamic_selection_mask
+                        )
+                        results_dict["semantic_embedding"] = (
+                            static_ratio[..., None] * semantic_embedding
+                            + dynamic_ratio[..., None] * dynamic_semantic_embedding
+                        )
+                        results_dict["instance_embedding"] = (
+                            static_ratio[..., None] * instance_embedding
+                            + dynamic_ratio[..., None] * dynamic_instance_embedding
+                        )
+                    # else:
+                    #     if self.sem:
+                    #         results_dict["selection_mask"] = (
+                    #             static_ratio[..., None] * selection_mask
+                    #             + dynamic_ratio[..., None] * dynamic_selection_mask
+                    #         )
+                    #         results_dict["semantic_embedding"] = (
+                    #             static_ratio[..., None] * semantic_embedding
+                    #             + dynamic_ratio[..., None] * dynamic_semantic_embedding
+                    #         )
+                    #         results_dict["instance_embedding"] = (
+                    #             static_ratio[..., None] * instance_embedding
+                    #             + dynamic_ratio[..., None] * dynamic_instance_embedding
+                    #         )
             else:
-                if self.split_semantic_instance:
-                    if self.sem:
-                        results_dict["selection_mask"] = selection_mask
-                        results_dict["semantic_embedding"] = semantic_embedding
-                    else:
-                        results_dict["instance_embedding"] = instance_embedding
-                else:
-                    if self.sem:
-                        results_dict["selection_mask"] = selection_mask
-                        results_dict["semantic_embedding"] = semantic_embedding
-                        results_dict["instance_embedding"] = instance_embedding
+                # if self.split_semantic_instance:
+                #     if self.sem:
+                #         results_dict["selection_mask"] = selection_mask
+                #         results_dict["semantic_embedding"] = semantic_embedding
+                #     else:
+                #         results_dict["instance_embedding"] = instance_embedding
+                # else:
+                if self.sem:
+                    results_dict["selection_mask"] = selection_mask
+                    results_dict["semantic_embedding"] = semantic_embedding
+                    results_dict["instance_embedding"] = instance_embedding
                 
         # query sky if not in lidar mode
         if (
@@ -885,12 +880,12 @@ class RadianceField(nn.Module):
         rgb_sky = F.sigmoid(rgb_sky)
         results = {"rgb_sky": rgb_sky}
 
-        if self.enable_segmentation_head:
-            semantic_sky_embedding = self.semantic_sky_head(dd).to(directions)
-            instance_sky_embedding = self.instance_sky_head(dd).to(directions)
-            results["semantic_sky_embedding"] = F.sigmoid(semantic_sky_embedding)
+        # if self.enable_segmentation_head:
+        #     semantic_sky_embedding = self.semantic_sky_head(dd).to(directions)
+        #     instance_sky_embedding = self.instance_sky_head(dd).to(directions)
+        #     results["semantic_sky_embedding"] = F.sigmoid(semantic_sky_embedding)
             # results["semantic_sky_embedding"] = semantic_sky_embedding
-            results["instance_sky_embedding"] = F.sigmoid(instance_sky_embedding)
+            # results["instance_sky_embedding"] = F.sigmoid(instance_sky_embedding)
         
         return results
 

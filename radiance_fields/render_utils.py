@@ -207,42 +207,42 @@ def rendering_rgb(results, weights, static_ratio, static_weights,
             ] * (1.0 - results_dict["static_opacity"])
 
 
-def rendering_segmentation_features(results, weights, static_ratio, static_weights,
-                                    dynamic_ratio, dynamic_weights, results_dict, return_decomposition):
-    if "static_instance_embedding" in results and "dynamic_instance_embedding" in results:
-        instance_embedding = (
-            static_ratio[..., None] * results["static_instance_embedding"]
-            + dynamic_ratio[..., None] * results["dynamic_instance_embedding"]
-        )
-        results_dict["instance_embedding"] = accumulate_along_rays(
-            weights,
-            values=instance_embedding
-        )
-        if return_decomposition:
-            results_dict["static_instance_embedding"] = accumulate_along_rays(
-                static_weights,
-                values=results["static_instance_embedding"]
-            )
-            results_dict["dynamic_instance_embedding"] = accumulate_along_rays(
-                dynamic_weights,
-                values=results["dynamic_instance_embedding"]
-            )
+# def rendering_segmentation_features(results, weights, static_ratio, static_weights,
+#                                     dynamic_ratio, dynamic_weights, results_dict, return_decomposition):
+    # if "static_instance_embedding" in results and "dynamic_instance_embedding" in results:
+    #     instance_embedding = (
+    #         static_ratio[..., None] * results["static_instance_embedding"]
+    #         + dynamic_ratio[..., None] * results["dynamic_instance_embedding"]
+    #     )
+    #     results_dict["instance_embedding"] = accumulate_along_rays(
+    #         weights,
+    #         values=instance_embedding
+    #     )
+    #     if return_decomposition:
+    #         results_dict["static_instance_embedding"] = accumulate_along_rays(
+    #             static_weights,
+    #             values=results["static_instance_embedding"]
+    #         )
+    #         results_dict["dynamic_instance_embedding"] = accumulate_along_rays(
+    #             dynamic_weights,
+    #             values=results["dynamic_instance_embedding"]
+    #         )
             # if "semantic_sky_embedding" in results and "instance_sky_embedding" in results:
             #     results_dict["static_semantic_embedding"] = results_dict["static_semantic_embedding"] + \
             #         results["semantic_sky_embedding"] * (1.0 - results_dict["static_opacity"])
             #     results_dict["static_instance_embedding"] = results_dict["static_instance_embedding"] + \
             #         results["instance_sky_embedding"] * (1.0 - results_dict["static_opacity"])
-    else:
-        if "instance_embedding" in results:
-            results_dict["instance_embedding"] = accumulate_along_rays(
-                weights,
-                values=results["instance_embedding"]
-            )
-            # if "semantic_sky_embedding" in results and "instance_sky_embedding" in results:
-            #     results_dict["semantic_embedding"] = results_dict["semantic_embedding"] + \
-            #         results["semantic_sky_embedding"] * (1.0 - results_dict["opacity"])
-            #     results_dict["instance_embedding"] = results_dict["instance_embedding"] + \
-            #         results["instance_sky_embedding"] * (1.0 - results_dict["opacity"])
+    # else:
+    #     if "instance_embedding" in results:
+    #         results_dict["instance_embedding"] = accumulate_along_rays(
+    #             weights,
+    #             values=results["instance_embedding"]
+    #         )
+    #         if "semantic_sky_embedding" in results and "instance_sky_embedding" in results:
+    #             results_dict["semantic_embedding"] = results_dict["semantic_embedding"] + \
+    #                 results["semantic_sky_embedding"] * (1.0 - results_dict["opacity"])
+    #             results_dict["instance_embedding"] = results_dict["instance_embedding"] + \
+    #                 results["instance_sky_embedding"] * (1.0 - results_dict["opacity"])
                   
     
 def rendering(
@@ -285,8 +285,8 @@ def rendering(
                   dynamic_ratio, dynamic_weights, results_dict, return_decomposition)
 
     # =========== Segmentation Features =========== #
-    rendering_segmentation_features(results, weights, static_ratio, static_weights,
-                                     dynamic_ratio, dynamic_weights, results_dict, return_decomposition)
+    # rendering_segmentation_features(results, weights, static_ratio, static_weights,
+    #                                  dynamic_ratio, dynamic_weights, results_dict, return_decomposition)
 
     # also return "extras" for some supervision
     results_dict["extras"] = extras

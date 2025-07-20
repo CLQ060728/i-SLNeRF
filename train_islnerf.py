@@ -1123,58 +1123,58 @@ def compute_segmentation_loss(cfg, step, dataset, model, dino_extractor, proposa
         # compute instance consistency loss
         total_instance_loss = 0
         if step > cfg.supervision.segmentation.instance.start_iter:
-            if cfg.nerf.model.head.split_semantic_instance:
-                i = torch.randint(0, len(dataset.train_pixel_set), (1,)).item()
-                ins_pixel_data_dict = dataset.train_pixel_set[i]
-                for k, v in ins_pixel_data_dict.items():
-                    if isinstance(v, torch.Tensor):
-                        ins_pixel_data_dict[k] = v.cuda(non_blocking=True)
-                # ------ pixel-wise supervision -------- #
-                ins_render_results = render_rays(
-                    radiance_field=model,
-                    proposal_estimator=proposal_estimator,
-                    proposal_networks=proposal_networks,
-                    data_dict=ins_pixel_data_dict,
-                    cfg=cfg,
-                    proposal_requires_grad=proposal_requires_grad
-                )
-                proposal_estimator.update_every_n_steps(
-                    ins_render_results["extras"]["trans"],
-                    proposal_requires_grad,
-                    loss_scaler=1024,
-                )
-            else:
-                i = torch.randint(0, len(dataset.semantic_train_set), (1,)).item()
-                ins_pixel_data_dict = dataset.semantic_train_set[i]
-                for k, v in ins_pixel_data_dict.items():
-                    if isinstance(v, torch.Tensor):
-                        ins_pixel_data_dict[k] = v.cuda(non_blocking=True)
-                # ------ pixel-wise supervision -------- #
-                ins_render_results = render_semantic_rays(
-                    radiance_field=model,
-                    proposal_estimator=proposal_estimator,
-                    proposal_networks=proposal_networks,
-                    data_dict=ins_pixel_data_dict,
-                    cfg=cfg,
-                    proposal_requires_grad=proposal_requires_grad
-                )
-                proposal_estimator.update_every_n_steps(
-                    ins_render_results["extras"]["trans"],
-                    proposal_requires_grad,
-                    loss_scaler=1024,
-                )
+            # if cfg.nerf.model.head.split_semantic_instance:
+            #     i = torch.randint(0, len(dataset.train_pixel_set), (1,)).item()
+            #     ins_pixel_data_dict = dataset.train_pixel_set[i]
+            #     for k, v in ins_pixel_data_dict.items():
+            #         if isinstance(v, torch.Tensor):
+            #             ins_pixel_data_dict[k] = v.cuda(non_blocking=True)
+            #     # ------ pixel-wise supervision -------- #
+            #     ins_render_results = render_rays(
+            #         radiance_field=model,
+            #         proposal_estimator=proposal_estimator,
+            #         proposal_networks=proposal_networks,
+            #         data_dict=ins_pixel_data_dict,
+            #         cfg=cfg,
+            #         proposal_requires_grad=proposal_requires_grad
+            #     )
+            #     proposal_estimator.update_every_n_steps(
+            #         ins_render_results["extras"]["trans"],
+            #         proposal_requires_grad,
+            #         loss_scaler=1024,
+            #     )
+            # else:
+            #     i = torch.randint(0, len(dataset.semantic_train_set), (1,)).item()
+            #     ins_pixel_data_dict = dataset.semantic_train_set[i]
+            #     for k, v in ins_pixel_data_dict.items():
+            #         if isinstance(v, torch.Tensor):
+            #             ins_pixel_data_dict[k] = v.cuda(non_blocking=True)
+            #     # ------ pixel-wise supervision -------- #
+            #     ins_render_results = render_semantic_rays(
+            #         radiance_field=model,
+            #         proposal_estimator=proposal_estimator,
+            #         proposal_networks=proposal_networks,
+            #         data_dict=ins_pixel_data_dict,
+            #         cfg=cfg,
+            #         proposal_requires_grad=proposal_requires_grad
+            #     )
+            #     proposal_estimator.update_every_n_steps(
+            #         ins_render_results["extras"]["trans"],
+            #         proposal_requires_grad,
+            #         loss_scaler=1024,
+            #     )
             
             model.ema_update_slownet()
             instance_loss_dict.update(instance_consistency_loss_fn(
-                ins_render_results["instance_embedding"],
-                ins_pixel_data_dict["instance_masks"],
-                ins_pixel_data_dict["instance_confidences"]
+                semantic_train_render_results["instance_embedding"],
+                semantic_train_data_dict["instance_masks"],
+                semantic_train_data_dict["instance_confidences"]
                 )
             )
             
             total_instance_loss = sum(loss for loss in instance_loss_dict.values())
             optimizer.zero_grad()
-            ins_render_results["instance_embedding"].retain_grad()
+            semantic_train_render_results["instance_embedding"].retain_grad()
             instance_grad_scaler.scale(total_instance_loss).backward()
             optimizer.step()
             scheduler.step()

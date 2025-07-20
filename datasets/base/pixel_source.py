@@ -71,7 +71,6 @@ def get_rays(
     # rotate the camera rays w.r.t. the camera pose
     directions = (camera_dirs[:, None, :] * c2w[:, :3, :3]).sum(dim=-1)
     origins = torch.broadcast_to(c2w[:, :3, -1], directions.shape)
-    # TODO: not sure if we still need direction_norm
     direction_norm = torch.linalg.norm(directions, dim=-1, keepdims=True)
     # normalize the ray directions
     viewdirs = directions / (direction_norm + 1e-8)
